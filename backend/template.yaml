@@ -18,7 +18,7 @@ Parameters:
     Description: Google OAuth client secret
   GoogleDesktopClientId:
     Type: String
-    Default: ""
+    Default: "889539163514-10nft2cs9sg6r66ssrusa649qm82kajr.apps.googleusercontent.com"
     Description: Google OAuth Desktop client ID (PKCE)
 
 Globals:
