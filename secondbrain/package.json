@@ -1,5 +1,5 @@
 {
-  "name": "braindump",
+  "name": "secondbrain",
   "version": "1.0.0",
   "description": "System-wide voice capture overlay for macOS",
   "main": "main.js",
