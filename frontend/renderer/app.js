@@ -1,12 +1,76 @@
-// BrainDump - Push-to-Talk Style
+// BrainDump - Minimal Brain with Loudness-Based Pulse
 
-const State = { LISTENING: 'listening', PROCESSING: 'processing', CONFIRMED: 'confirmed' };
-let currentState = State.LISTENING;
+const State = { IDLE: 'idle', LISTENING: 'listening', PROCESSING: 'processing', CONFIRMED: 'confirmed' };
+let currentState = State.IDLE;
+let simulationInterval = null;
 let keysHeld = false;
 
-const pillContainer = document.getElementById('pill-container');
-const waveform = document.getElementById('waveform');
-const statusText = document.getElementById('status-text');
+const brainContainer = document.getElementById('brain-container');
+const pulseRing = document.getElementById('pulse-ring');
+const brainIcon = document.getElementById('brain-icon');
+
+// Update pulse ring size based on loudness (0 to 1)
+function updatePulse(loudness) {
+  // Scale: 1.0 (no sound) to 2.5 (max loudness)
+  const scale = 1 + (loudness * 1.5);
+  // Opacity: 0.3 (quiet) to 1 (loud)
+  const opacity = 0.3 + (loudness * 0.7);
+  
+  pulseRing.style.transform = `scale(${scale})`;
+  pulseRing.style.opacity = opacity;
+  
+  // Subtle brain breathing - slight scale
+  const brainScale = 1 + (loudness * 0.08);
+  brainIcon.style.transform = `scale(${brainScale})`;
+}
+
+function setState(newState, data = {}) {
+  currentState = newState;
+  brainContainer.className = 'brain-container ' + newState;
+  
+  // Clear any simulation
+  if (simulationInterval) {
+    clearInterval(simulationInterval);
+    simulationInterval = null;
+  }
+  
+  switch (newState) {
+    case State.IDLE:
+      pulseRing.style.transform = 'scale(1)';
+      pulseRing.style.opacity = '0';
+      brainIcon.style.transform = 'scale(1)';
+      break;
+      
+    case State.LISTENING:
+      // Simulate varying loudness for now (will be replaced with real audio levels)
+      startLoudnessSimulation();
+      break;
+      
+    case State.PROCESSING:
+      // CSS handles the animation
+      brainIcon.style.transform = 'scale(1)';
+      break;
+      
+    case State.CONFIRMED:
+      // Quick confirmation then dismiss
+      brainIcon.style.transform = 'scale(1)';
+      break;
+  }
+}
+
+// Simulate audio loudness with random values (until real audio integration)
+function startLoudnessSimulation() {
+  let phase = 0;
+  simulationInterval = setInterval(() => {
+    // Generate natural-looking loudness variations
+    const base = Math.sin(phase) * 0.3 + 0.4;
+    const noise = (Math.random() - 0.5) * 0.4;
+    const loudness = Math.max(0, Math.min(1, base + noise));
+    
+    updatePulse(loudness);
+    phase += 0.15;
+  }, 50);
+}
 
 function classifyIntent(transcript) {
   const text = transcript.toLowerCase();
@@ -17,28 +81,7 @@ function classifyIntent(transcript) {
   return '✓ Saved';
 }
 
-function setState(newState, data = {}) {
-  currentState = newState;
-  waveform.classList.remove('listening', 'processing', 'hidden');
-  statusText.classList.remove('hidden');
-  pillContainer.classList.remove('confirmed');
-  
-  switch (newState) {
-    case State.LISTENING:
-      waveform.classList.add('listening');
-      statusText.classList.add('hidden');
-      break;
-    case State.PROCESSING:
-      waveform.classList.add('processing');
-      statusText.classList.add('hidden');
-      break;
-    case State.CONFIRMED:
-      waveform.classList.add('hidden');
-      statusText.textContent = data.message || '✓ Saved';
-      pillContainer.classList.add('confirmed');
-      break;
-  }
-}
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 async function processAndDismiss() {
   setState(State.PROCESSING);
@@ -46,18 +89,16 @@ async function processAndDismiss() {
   const transcript = await window.braindump.simulateVoice();
   await sleep(300);
   
-  setState(State.CONFIRMED, { message: classifyIntent(transcript) });
+  setState(State.CONFIRMED);
   await sleep(800);
   
   window.braindump.hideWindow();
 }
 
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
-// Track if modifier keys are still held
+// Track if modifier keys are still held - any of the keys releasing triggers stop
 document.addEventListener('keyup', (e) => {
-  // Check if Ctrl, Shift, or Space was released
-  if (e.key === 'Control' || e.key === 'Shift' || e.key === ' ') {
+  // Alt = Option on Mac, Shift, or Space released
+  if (e.key === 'Alt' || e.key === 'Shift' || e.key === ' ') {
     if (keysHeld) {
       keysHeld = false;
       window.braindump.keysReleased();
@@ -65,10 +106,10 @@ document.addEventListener('keyup', (e) => {
   }
 });
 
-// Check keys when main process asks
+// Check keys when main process asks - poll-based fallback
 window.braindump.onCheckKeys(() => {
-  // If we receive this and keys aren't detected as held, they were released
-  // This is a fallback - keyup should catch it first
+  // The window may lose focus, check if keys are no longer held
+  // This is handled by blur event in main process as backup
 });
 
 // Start listening when window shows
