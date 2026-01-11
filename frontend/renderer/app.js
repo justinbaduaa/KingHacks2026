@@ -17,9 +17,18 @@ const pulseRing = document.getElementById('pulse-ring');
 const brainIcon = document.getElementById('brain-icon');
 const actionCard = document.getElementById('action-card');
 const actionText = document.getElementById('action-text');
+const loadingBar = document.querySelector('.loading-bar');
 
 // Hardcoded reminder for demo
 const DEMO_REMINDER = "Email Sarah tomorrow about the project update";
+
+// Auto-dismiss when loading bar animation finishes
+// Note: Animation is paused by CSS hover state, so this naturally handles the "hover to stay" feature
+loadingBar.addEventListener('animationend', () => {
+  if (currentState === State.CONFIRMED) {
+    window.braindump.hideWindow();
+  }
+});
 
 // Update pulse ring size based on loudness (0 to 1)
 function updatePulse(loudness) {
@@ -162,13 +171,6 @@ async function processAndShowAction() {
   
   // Show the action card with hardcoded reminder
   setState(State.CONFIRMED, { text: DEMO_REMINDER });
-  
-  // Auto-dismiss after 2.5 seconds
-  await sleep(2500);
-  
-  if (currentState === State.CONFIRMED) {
-    window.braindump.hideWindow();
-  }
 }
 
 // Track if modifier keys are still held
