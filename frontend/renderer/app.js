@@ -1,25 +1,34 @@
-// BrainDump - Minimal Brain with Loudness-Based Pulse
+// BrainDump - Minimal Brain with Loudness-Based Pulse + Action Cards
 
 const State = { IDLE: 'idle', LISTENING: 'listening', PROCESSING: 'processing', CONFIRMED: 'confirmed' };
 let currentState = State.IDLE;
-let simulationInterval = null;
+let animationFrameId = null;
 let keysHeld = false;
 
+// Audio analysis
+let audioContext = null;
+let analyser = null;
+let microphone = null;
+let mediaStream = null;
+
+// Elements
 const brainContainer = document.getElementById('brain-container');
 const pulseRing = document.getElementById('pulse-ring');
 const brainIcon = document.getElementById('brain-icon');
+const actionCard = document.getElementById('action-card');
+const actionText = document.getElementById('action-text');
+
+// Hardcoded reminder for demo
+const DEMO_REMINDER = "Email Sarah tomorrow about the project update";
 
 // Update pulse ring size based on loudness (0 to 1)
 function updatePulse(loudness) {
-  // Scale: 1.0 (no sound) to 2.5 (max loudness)
   const scale = 1 + (loudness * 1.5);
-  // Opacity: 0.3 (quiet) to 1 (loud)
   const opacity = 0.3 + (loudness * 0.7);
   
   pulseRing.style.transform = `scale(${scale})`;
   pulseRing.style.opacity = opacity;
   
-  // Subtle brain breathing - slight scale
   const brainScale = 1 + (loudness * 0.08);
   brainIcon.style.transform = `scale(${brainScale})`;
 }
@@ -28,76 +37,142 @@ function setState(newState, data = {}) {
   currentState = newState;
   brainContainer.className = 'brain-container ' + newState;
   
-  // Clear any simulation
-  if (simulationInterval) {
-    clearInterval(simulationInterval);
-    simulationInterval = null;
-  }
+  // Stop audio analysis
+  stopAudioAnalysis();
   
   switch (newState) {
     case State.IDLE:
       pulseRing.style.transform = 'scale(1)';
       pulseRing.style.opacity = '0';
       brainIcon.style.transform = 'scale(1)';
+      brainContainer.classList.remove('hidden');
+      actionCard.classList.remove('visible');
       break;
       
     case State.LISTENING:
-      // Simulate varying loudness for now (will be replaced with real audio levels)
-      startLoudnessSimulation();
+      brainContainer.classList.remove('hidden');
+      actionCard.classList.remove('visible');
+      startAudioAnalysis();
       break;
       
     case State.PROCESSING:
-      // CSS handles the animation
+      brainContainer.classList.add('hidden');
       brainIcon.style.transform = 'scale(1)';
       break;
       
     case State.CONFIRMED:
-      // Quick confirmation then dismiss
-      brainIcon.style.transform = 'scale(1)';
+      brainContainer.classList.add('hidden');
+      actionText.textContent = data.text || DEMO_REMINDER;
+      actionCard.classList.add('visible');
       break;
   }
 }
 
-// Simulate audio loudness with random values (until real audio integration)
+// Start real audio analysis from microphone
+async function startAudioAnalysis() {
+  try {
+    // Get microphone access
+    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    
+    // Create audio context and analyser
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    analyser = audioContext.createAnalyser();
+    analyser.fftSize = 256;
+    analyser.smoothingTimeConstant = 0.3;
+    
+    // Connect microphone to analyser
+    microphone = audioContext.createMediaStreamSource(mediaStream);
+    microphone.connect(analyser);
+    
+    // Start analyzing
+    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+    
+    function analyze() {
+      if (currentState !== State.LISTENING) return;
+      
+      analyser.getByteFrequencyData(dataArray);
+      
+      // Calculate average volume (RMS-like)
+      let sum = 0;
+      for (let i = 0; i < dataArray.length; i++) {
+        sum += dataArray[i];
+      }
+      const average = sum / dataArray.length;
+      
+      // Normalize to 0-1 range (255 is max value)
+      // Apply scaling to make it more sensitive to quieter sounds
+      const loudness = Math.min(1, (average / 30) * 1.5);
+      
+      updatePulse(loudness);
+      animationFrameId = requestAnimationFrame(analyze);
+    }
+    
+    analyze();
+  } catch (err) {
+    console.error('Error accessing microphone:', err);
+    // Fallback to simulation if microphone access fails
+    startLoudnessSimulation();
+  }
+}
+
+// Stop audio analysis and cleanup
+function stopAudioAnalysis() {
+  if (animationFrameId) {
+    cancelAnimationFrame(animationFrameId);
+    animationFrameId = null;
+  }
+  
+  if (mediaStream) {
+    mediaStream.getTracks().forEach(track => track.stop());
+    mediaStream = null;
+  }
+  
+  if (audioContext) {
+    audioContext.close();
+    audioContext = null;
+  }
+  
+  analyser = null;
+  microphone = null;
+}
+
+// Fallback: Simulate audio loudness with random values
 function startLoudnessSimulation() {
   let phase = 0;
-  simulationInterval = setInterval(() => {
-    // Generate natural-looking loudness variations
+  function simulate() {
+    if (currentState !== State.LISTENING) return;
+    
     const base = Math.sin(phase) * 0.3 + 0.4;
     const noise = (Math.random() - 0.5) * 0.4;
     const loudness = Math.max(0, Math.min(1, base + noise));
     
     updatePulse(loudness);
     phase += 0.15;
-  }, 50);
-}
-
-function classifyIntent(transcript) {
-  const text = transcript.toLowerCase();
-  if (text.includes('remind')) return '✓ Reminder';
-  if (text.includes('email')) return '✓ Email';
-  if (text.includes('schedule') || text.includes('meeting')) return '✓ Scheduled';
-  if (text.includes('task') || text.includes('todo')) return '✓ Task';
-  return '✓ Saved';
+    animationFrameId = requestAnimationFrame(simulate);
+  }
+  simulate();
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-async function processAndDismiss() {
+async function processAndShowAction() {
+  // Brief processing moment
   setState(State.PROCESSING);
-  
-  const transcript = await window.braindump.simulateVoice();
   await sleep(300);
   
-  setState(State.CONFIRMED);
-  await sleep(800);
+  // Show the action card with hardcoded reminder
+  setState(State.CONFIRMED, { text: DEMO_REMINDER });
   
-  window.braindump.hideWindow();
+  // Auto-dismiss after 2.5 seconds
+  await sleep(2500);
+  
+  if (currentState === State.CONFIRMED) {
+    window.braindump.hideWindow();
+  }
 }
 
-// Track if modifier keys are still held - any of the keys releasing triggers stop
+// Track if modifier keys are still held
 document.addEventListener('keyup', (e) => {
-  // Alt = Option on Mac, Shift, or Space released
   if (e.key === 'Alt' || e.key === 'Shift' || e.key === ' ') {
     if (keysHeld) {
       keysHeld = false;
@@ -106,10 +181,9 @@ document.addEventListener('keyup', (e) => {
   }
 });
 
-// Check keys when main process asks - poll-based fallback
+// Check keys when main process asks
 window.braindump.onCheckKeys(() => {
-  // The window may lose focus, check if keys are no longer held
-  // This is handled by blur event in main process as backup
+  // Handled by blur event in main process as backup
 });
 
 // Start listening when window shows
@@ -118,11 +192,16 @@ window.braindump.onStartListening(() => {
   setState(State.LISTENING);
 });
 
-// Stop listening and process
+// Stop listening and show action
 window.braindump.onStopListening(() => {
   if (currentState === State.LISTENING) {
-    processAndDismiss();
+    processAndShowAction();
   }
+});
+
+// Window hidden - reset state
+window.braindump.onWindowHidden(() => {
+  setState(State.IDLE);
 });
 
 // Escape to cancel
