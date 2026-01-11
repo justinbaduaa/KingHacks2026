@@ -14,7 +14,7 @@ function createWindow() {
   const { width: screenWidth, height: screenHeight } =
     screen.getPrimaryDisplay().workAreaSize;
 
-  const windowWidth = 150;
+  const windowWidth = 400;
   const windowHeight = 150;
 
   mainWindow = new BrowserWindow({
@@ -22,6 +22,7 @@ function createWindow() {
     height: windowHeight,
     x: Math.round((screenWidth - windowWidth) / 2),
     y: screenHeight - windowHeight - 5,
+    type: 'panel',
     frame: false,
     transparent: true,
     alwaysOnTop: true,
@@ -33,6 +34,7 @@ function createWindow() {
     closable: true,
     show: false,
     hasShadow: false,
+    excludedFromShownWindowsMenu: true,
     backgroundColor: '#00000000',
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -65,7 +67,7 @@ function showWindow() {
     const { width: screenWidth, height: screenHeight } = currentDisplay.workAreaSize;
     const { x: screenX, y: screenY } = currentDisplay.workArea;
     
-    const windowWidth = 150;
+    const windowWidth = 400;
     const windowHeight = 150;
     
     // Calculate position at bottom center of the current screen
