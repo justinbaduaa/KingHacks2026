@@ -10,18 +10,20 @@ const path = require("path");
 let mainWindow = null;
 let isShortcutHeld = false;
 
-function createWindow() {
+// creates the overlay window with some special settings, like transparent and always on top, no taskbar
+function createWindow() { 
   const { width: screenWidth, height: screenHeight } =
     screen.getPrimaryDisplay().workAreaSize;
 
-  const windowWidth = 130;
-  const windowHeight = 40;
+  const windowWidth = 400;
+  const windowHeight = 450;
 
   mainWindow = new BrowserWindow({
     width: windowWidth,
     height: windowHeight,
     x: Math.round((screenWidth - windowWidth) / 2),
     y: screenHeight - windowHeight - 5,
+    type: 'panel',
     frame: false,
     transparent: true,
     alwaysOnTop: true,
@@ -33,6 +35,7 @@ function createWindow() {
     closable: true,
     show: false,
     hasShadow: false,
+    excludedFromShownWindowsMenu: true,
     backgroundColor: '#00000000',
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -57,16 +60,32 @@ function createWindow() {
   });
 }
 
+// shwos the overlay at the bottom centre of the current screen (semi-works with multidisplays)
 function showWindow() {
   if (mainWindow) {
-    const { width: screenWidth, height: screenHeight } =
-      screen.getPrimaryDisplay().workAreaSize;
-    const windowWidth = 130;
-    const windowHeight = 40;
-    mainWindow.setPosition(
-      Math.round((screenWidth - windowWidth) / 2),
-      screenHeight - windowHeight - 5
-    );
+    // Get the display where the cursor currently is
+    const cursorPoint = screen.getCursorScreenPoint();
+    const currentDisplay = screen.getDisplayNearestPoint(cursorPoint);
+    const { width: screenWidth, height: screenHeight } = currentDisplay.workAreaSize;
+    const { x: screenX, y: screenY } = currentDisplay.workArea;
+    
+    const windowWidth = 400;
+    const windowHeight = 450;
+    
+    // Calculate position at bottom center of the current screen
+    const newX = Math.round(screenX + (screenWidth - windowWidth) / 2);
+    const newY = screenY + screenHeight - windowHeight - 5;
+    
+    // Use setBounds for more reliable multi-monitor positioning
+    mainWindow.setBounds({
+      x: newX,
+      y: newY,
+      width: windowWidth,
+      height: windowHeight
+    });
+    
+    // Ensure window is visible on all workspaces (helps with multi-monitor)
+    mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 
     mainWindow.show();
     mainWindow.focus();
@@ -74,6 +93,7 @@ function showWindow() {
   }
 }
 
+// hides the window and notifies renderer
 function hideWindow() {
   if (mainWindow && mainWindow.isVisible()) {
     mainWindow.hide();
@@ -85,7 +105,9 @@ app.whenReady().then(() => {
   createWindow();
 
   // Register shortcut - fires repeatedly while held
-  globalShortcut.register("Control+Shift+Space", () => {
+  // Use Option+Shift+Space on Mac, Alt+Shift+Space on Windows/Linux
+  const shortcut = "Alt+Shift+Space";
+  globalShortcut.register(shortcut, () => {
     if (!isShortcutHeld) {
       isShortcutHeld = true;
       showWindow();

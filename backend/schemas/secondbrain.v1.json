@@ -1,0 +1,186 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SecondBrainExtractionResult",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "timezone", "source", "items", "overflow"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "secondbrain.v1" },
+    "timezone": { "type": "string" },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["transcript", "captured_at"],
+      "properties": {
+        "transcript": { "type": "string" },
+        "captured_at": { "type": "string" },
+        "language": { "type": "string" }
+      }
+    },
+    "items": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/item" }
+    },
+    "overflow": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/overflow" }
+    },
+    "global_warnings": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "$defs": {
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["quote"],
+      "properties": {
+        "quote": { "type": "string", "maxLength": 240 }
+      }
+    },
+    "when": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "original_text", "needs_clarification"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["datetime", "date", "time_window", "unspecified"]
+        },
+        "datetime": { "type": "string" },
+        "date": { "type": "string" },
+        "time_window": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["start", "end"],
+          "properties": {
+            "start": { "type": "string" },
+            "end": { "type": "string" }
+          }
+        },
+        "original_text": { "type": "string", "maxLength": 120 },
+        "needs_clarification": { "type": "boolean" }
+      }
+    },
+    "baseItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "temp_id", "body", "confidence", "evidence"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["note", "todo", "reminder", "email", "calendar"]
+        },
+        "temp_id": { "type": "string", "pattern": "^t[0-9]+$" },
+        "title": { "type": "string", "maxLength": 120 },
+        "body": { "type": "string", "maxLength": 4000 },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string", "maxLength": 40 },
+          "maxItems": 12
+        },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "evidence": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/evidence" },
+          "minItems": 1,
+          "maxItems": 5
+        }
+      }
+    },
+    "note": {
+      "allOf": [
+        { "$ref": "#/$defs/baseItem" },
+        {
+          "type": "object",
+          "properties": { "type": { "const": "note" } }
+        }
+      ]
+    },
+    "todo": {
+      "allOf": [
+        { "$ref": "#/$defs/baseItem" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "temp_id", "body", "confidence", "evidence", "status"],
+          "properties": {
+            "type": { "const": "todo" },
+            "status": { "type": "string", "enum": ["open", "done"] },
+            "due": { "$ref": "#/$defs/when" }
+          }
+        }
+      ]
+    },
+    "reminder": {
+      "allOf": [
+        { "$ref": "#/$defs/baseItem" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "temp_id", "body", "confidence", "evidence", "when"],
+          "properties": {
+            "type": { "const": "reminder" },
+            "when": { "$ref": "#/$defs/when" }
+          }
+        }
+      ]
+    },
+    "email": {
+      "allOf": [
+        { "$ref": "#/$defs/baseItem" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "temp_id", "body", "confidence", "evidence", "to"],
+          "properties": {
+            "type": { "const": "email" },
+            "to": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+            "cc": { "type": "array", "items": { "type": "string" } },
+            "subject": { "type": "string", "maxLength": 160 }
+          }
+        }
+      ]
+    },
+    "calendar": {
+      "allOf": [
+        { "$ref": "#/$defs/baseItem" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "temp_id", "body", "confidence", "evidence", "start", "end"],
+          "properties": {
+            "type": { "const": "calendar" },
+            "start": { "type": "string" },
+            "end": { "type": "string" },
+            "location": { "type": "string", "maxLength": 200 },
+            "attendees": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      ]
+    },
+    "item": {
+      "oneOf": [
+        { "$ref": "#/$defs/note" },
+        { "$ref": "#/$defs/todo" },
+        { "$ref": "#/$defs/reminder" },
+        { "$ref": "#/$defs/email" },
+        { "$ref": "#/$defs/calendar" }
+      ]
+    },
+    "overflow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["raw_text", "reason"],
+      "properties": {
+        "raw_text": { "type": "string", "maxLength": 400 },
+        "suggested_type": {
+          "type": "string",
+          "enum": ["note", "todo", "reminder", "email", "calendar"]
+        },
+        "reason": { "type": "string", "maxLength": 200 }
+      }
+    }
+  }
+}

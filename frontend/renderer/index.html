@@ -7,29 +7,24 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="pill-container" id="pill-container">
-    <!-- Brain Icon -->
-    <div class="brain-icon">
-      <img src="brain.png" alt="Brain" />
-    </div>
+  <!-- Listening State -->
+  <div class="brain-container" id="brain-container">
+    <div class="pulse-ring" id="pulse-ring"></div>
+    <img src="brain.png" alt="" class="brain-icon" id="brain-icon" />
+  </div>
+
+  <!-- Action Card Stack -->
+  <div class="cards-stack" id="cards-stack">
+    <!-- Cards will be injected here by JS -->
     
-    <!-- Waveform -->
-    <div class="waveform" id="waveform">
-      <span class="wave-bar"></span>
-      <span class="wave-bar"></span>
-      <span class="wave-bar"></span>
-      <span class="wave-bar"></span>
-      <span class="wave-bar"></span>
-      <span class="wave-bar"></span>
-      <span class="wave-bar"></span>
-      <span class="wave-bar"></span>
-      <span class="wave-bar"></span>
-      <span class="wave-bar"></span>
-      <span class="wave-bar"></span>
-    </div>
+    <!-- Global Loading Bar for the stack -->
+    <div class="loading-bar"></div>
     
-    <!-- Status Text (for confirmation) -->
-    <span id="status-text" class="status-text hidden"></span>
+    <!-- Expired Message (shown when timer runs out without interaction) -->
+    <div class="expired-message" id="expired-message">
+      <span class="expired-message-text">Tasks need approval.<br>Please go to the dashboard to complete them.</span>
+      <button class="expired-message-btn" id="open-dashboard-btn">Open Dashboard</button>
+    </div>
   </div>
 
   <script src="app.js"></script>
