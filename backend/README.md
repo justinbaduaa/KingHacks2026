@@ -92,6 +92,11 @@ This scales to other providers by adding:
 Provider refresh entry point:
 - `backend/src/lib/oauth_refresh.py`
 
+## Second Brain schema (future)
+
+The JSON envelope and schema live here for future Bedrock tool-use integration:
+- `backend/schemas/secondbrain.v1.json`
+
 ## DynamoDB Tables
 
 - `DynamoDBTable` holds core app data (nodes, etc).
