@@ -53,6 +53,28 @@ https://accounts.google.com/o/oauth2/v2/auth
   &state=RANDOM_STATE
 ```
 
+## Transcribe Streaming (direct from Electron)
+
+For lowest latency, the Electron app can stream audio directly to Amazon Transcribe using Cognito Identity Pool credentials, then send the final transcript to the backend for Bedrock processing.
+
+### Identity Pool permissions (minimal)
+
+The authenticated role needs:
+- `transcribe:StartStreamTranscription`
+- `transcribe:StartStreamTranscriptionWebSocket`
+
+These are already wired in `backend/template.yaml` under `CognitoIdentityPoolAuthenticatedRole`.
+
+### Backend endpoint (spec only)
+
+Recommended endpoint for the final transcript:
+- `POST /transcripts/process`
+
+The backend would:
+1) Call Bedrock with the transcript.
+2) Validate against `backend/schemas/secondbrain.v1.json`.
+3) Return the structured JSON envelope.
+
 ### Scopes (examples)
 - Identity: `openid email profile`
 - Calendar read: `https://www.googleapis.com/auth/calendar.readonly`
@@ -130,6 +152,7 @@ Google Console setup checklist:
 
 Reference:
 - https://console.cloud.google.com/apis/credentials
+
 
 ## Local Development
 

@@ -1,7 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: Backend API
-
 Parameters:
   CognitoDomainPrefix:
     Type: String
@@ -9,18 +8,17 @@ Parameters:
     Description: Cognito hosted UI domain prefix (must be globally unique)
   GoogleClientId:
     Type: String
-    Default: ""
+    Default: ''
     Description: Google OAuth client ID
   GoogleClientSecret:
     Type: String
     NoEcho: true
-    Default: ""
+    Default: ''
     Description: Google OAuth client secret
   GoogleDesktopClientId:
     Type: String
-    Default: "889539163514-10nft2cs9sg6r66ssrusa649qm82kajr.apps.googleusercontent.com"
+    Default: 889539163514-10nft2cs9sg6r66ssrusa649qm82kajr.apps.googleusercontent.com
     Description: Google OAuth Desktop client ID (PKCE)
-
 Globals:
   Function:
     Timeout: 30
@@ -28,10 +26,12 @@ Globals:
     MemorySize: 256
     Environment:
       Variables:
-        TABLE_NAME: !Ref DynamoDBTable
-        INTEGRATIONS_TABLE_NAME: !Ref IntegrationsTable
-        GOOGLE_OAUTH_CLIENT_ID: !Ref GoogleDesktopClientId
-
+        TABLE_NAME:
+          Ref: DynamoDBTable
+        INTEGRATIONS_TABLE_NAME:
+          Ref: IntegrationsTable
+        GOOGLE_OAUTH_CLIENT_ID:
+          Ref: GoogleDesktopClientId
 Resources:
   BackendApi:
     Type: AWS::Serverless::Api
@@ -41,53 +41,56 @@ Resources:
         DefaultAuthorizer: CognitoAuthorizer
         Authorizers:
           CognitoAuthorizer:
-            UserPoolArn: !GetAtt CognitoUserPool.Arn
+            UserPoolArn:
+              Fn::GetAtt:
+              - CognitoUserPool
+              - Arn
       Cors:
-        AllowMethods: "'GET,POST,PATCH,DELETE,OPTIONS'"
-        AllowHeaders: "'Content-Type,Authorization'"
-        AllowOrigin: "'*'"
-
+        AllowMethods: '''GET,POST,PATCH,DELETE,OPTIONS'''
+        AllowHeaders: '''Content-Type,Authorization'''
+        AllowOrigin: '''*'''
   DynamoDBTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub ${AWS::StackName}-table
+      TableName:
+        Fn::Sub: ${AWS::StackName}-table
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
-        - AttributeName: pk
-          AttributeType: S
-        - AttributeName: sk
-          AttributeType: S
+      - AttributeName: pk
+        AttributeType: S
+      - AttributeName: sk
+        AttributeType: S
       KeySchema:
-        - AttributeName: pk
-          KeyType: HASH
-        - AttributeName: sk
-          KeyType: RANGE
-
+      - AttributeName: pk
+        KeyType: HASH
+      - AttributeName: sk
+        KeyType: RANGE
   IntegrationsTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub ${AWS::StackName}-integrations
+      TableName:
+        Fn::Sub: ${AWS::StackName}-integrations
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
-        - AttributeName: pk
-          AttributeType: S
-        - AttributeName: sk
-          AttributeType: S
+      - AttributeName: pk
+        AttributeType: S
+      - AttributeName: sk
+        AttributeType: S
       KeySchema:
-        - AttributeName: pk
-          KeyType: HASH
-        - AttributeName: sk
-          KeyType: RANGE
-
+      - AttributeName: pk
+        KeyType: HASH
+      - AttributeName: sk
+        KeyType: RANGE
   CognitoUserPool:
     Type: AWS::Cognito::UserPool
     Properties:
-      UserPoolName: !Sub ${AWS::StackName}-user-pool
+      UserPoolName:
+        Fn::Sub: ${AWS::StackName}-user-pool
       UsernameAttributes:
-        - email
+      - email
       AutoVerifiedAttributes:
-        - email
-      MfaConfiguration: OFF
+      - email
+      MfaConfiguration: false
       Policies:
         PasswordPolicy:
           MinimumLength: 8
@@ -95,211 +98,236 @@ Resources:
           RequireUppercase: true
           RequireNumbers: true
           RequireSymbols: false
-
   CognitoUserPoolDomain:
     Type: AWS::Cognito::UserPoolDomain
     Properties:
-      Domain: !Ref CognitoDomainPrefix
-      UserPoolId: !Ref CognitoUserPool
-
+      Domain:
+        Ref: CognitoDomainPrefix
+      UserPoolId:
+        Ref: CognitoUserPool
   CognitoUserPoolGoogleIdP:
     Type: AWS::Cognito::UserPoolIdentityProvider
     Properties:
       ProviderName: Google
       ProviderType: Google
-      UserPoolId: !Ref CognitoUserPool
+      UserPoolId:
+        Ref: CognitoUserPool
       AttributeMapping:
         email: email
         given_name: given_name
         family_name: family_name
         name: name
       ProviderDetails:
-        client_id: !Ref GoogleClientId
-        client_secret: !Ref GoogleClientSecret
-        authorize_scopes: "openid email profile"
-
+        client_id:
+          Ref: GoogleClientId
+        client_secret:
+          Ref: GoogleClientSecret
+        authorize_scopes: openid email profile
   CognitoUserPoolClient:
     Type: AWS::Cognito::UserPoolClient
     Properties:
-      UserPoolId: !Ref CognitoUserPool
-      ClientName: !Sub ${AWS::StackName}-user-pool-client
+      UserPoolId:
+        Ref: CognitoUserPool
+      ClientName:
+        Fn::Sub: ${AWS::StackName}-user-pool-client
       GenerateSecret: false
       AllowedOAuthFlowsUserPoolClient: true
       AllowedOAuthFlows:
-        - code
+      - code
       AllowedOAuthScopes:
-        - email
-        - openid
-        - profile
+      - email
+      - openid
+      - profile
       SupportedIdentityProviders:
-        - COGNITO
-        - Google
+      - COGNITO
+      - Google
       CallbackURLs:
-        - http://localhost:3000/callback
+      - http://localhost:3000/callback
       LogoutURLs:
-        - http://localhost:3000/
-
+      - http://localhost:3000/
   CognitoIdentityPool:
     Type: AWS::Cognito::IdentityPool
     Properties:
-      IdentityPoolName: !Sub ${AWS::StackName}-identity-pool
+      IdentityPoolName:
+        Fn::Sub: ${AWS::StackName}-identity-pool
       AllowUnauthenticatedIdentities: false
       CognitoIdentityProviders:
-        - ClientId: !Ref CognitoUserPoolClient
-          ProviderName: !GetAtt CognitoUserPool.ProviderName
-
+      - ClientId:
+          Ref: CognitoUserPoolClient
+        ProviderName:
+          Fn::GetAtt:
+          - CognitoUserPool
+          - ProviderName
   CognitoIdentityPoolAuthenticatedRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub ${AWS::StackName}-identity-auth-role
+      RoleName:
+        Fn::Sub: ${AWS::StackName}-identity-auth-role
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
-          - Effect: Allow
-            Principal:
-              Federated: cognito-identity.amazonaws.com
-            Action: sts:AssumeRoleWithWebIdentity
-            Condition:
-              StringEquals:
-                cognito-identity.amazonaws.com:aud: !Ref CognitoIdentityPool
-              ForAnyValue:StringLike:
-                cognito-identity.amazonaws.com:amr: authenticated
-      Policies:
-        - PolicyName: TranscribeStreamingAccess
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - transcribe:StartStreamTranscription
-                  - transcribe:StartStreamTranscriptionWebSocket
-                Resource: "*"
-
+        - Effect: Allow
+          Principal:
+            Federated: cognito-identity.amazonaws.com
+          Action: sts:AssumeRoleWithWebIdentity
+          Condition:
+            StringEquals:
+              cognito-identity.amazonaws.com:aud:
+                Ref: CognitoIdentityPool
+            ForAnyValue:StringLike:
+              cognito-identity.amazonaws.com:amr: authenticated
   CognitoIdentityPoolUnauthenticatedRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub ${AWS::StackName}-identity-unauth-role
+      RoleName:
+        Fn::Sub: ${AWS::StackName}-identity-unauth-role
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
-          - Effect: Allow
-            Principal:
-              Federated: cognito-identity.amazonaws.com
-            Action: sts:AssumeRoleWithWebIdentity
-            Condition:
-              StringEquals:
-                cognito-identity.amazonaws.com:aud: !Ref CognitoIdentityPool
-              ForAnyValue:StringLike:
-                cognito-identity.amazonaws.com:amr: unauthenticated
-
+        - Effect: Allow
+          Principal:
+            Federated: cognito-identity.amazonaws.com
+          Action: sts:AssumeRoleWithWebIdentity
+          Condition:
+            StringEquals:
+              cognito-identity.amazonaws.com:aud:
+                Ref: CognitoIdentityPool
+            ForAnyValue:StringLike:
+              cognito-identity.amazonaws.com:amr: unauthenticated
   CognitoIdentityPoolRoleAttachment:
     Type: AWS::Cognito::IdentityPoolRoleAttachment
     Properties:
-      IdentityPoolId: !Ref CognitoIdentityPool
+      IdentityPoolId:
+        Ref: CognitoIdentityPool
       Roles:
-        authenticated: !GetAtt CognitoIdentityPoolAuthenticatedRole.Arn
-        unauthenticated: !GetAtt CognitoIdentityPoolUnauthenticatedRole.Arn
-
+        authenticated:
+          Fn::GetAtt:
+          - CognitoIdentityPoolAuthenticatedRole
+          - Arn
+        unauthenticated:
+          Fn::GetAtt:
+          - CognitoIdentityPoolUnauthenticatedRole
+          - Arn
   IngestFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: src/
+      CodeUri: IngestFunction
       Handler: handlers.ingest.handler
       Events:
         Api:
           Type: Api
           Properties:
-            RestApiId: !Ref BackendApi
+            RestApiId:
+              Ref: BackendApi
             Path: /ingest
             Method: POST
-
+    Metadata:
+      SamResourceId: IngestFunction
   GetActiveNodesFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: src/
+      CodeUri: GetActiveNodesFunction
       Handler: handlers.get_active_nodes.handler
       Events:
         Api:
           Type: Api
           Properties:
-            RestApiId: !Ref BackendApi
+            RestApiId:
+              Ref: BackendApi
             Path: /nodes/active
             Method: GET
-
+    Metadata:
+      SamResourceId: GetActiveNodesFunction
   PatchNodeFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: src/
+      CodeUri: PatchNodeFunction
       Handler: handlers.patch_node.handler
       Events:
         Api:
           Type: Api
           Properties:
-            RestApiId: !Ref BackendApi
+            RestApiId:
+              Ref: BackendApi
             Path: /node/{node_id}
             Method: PATCH
-
+    Metadata:
+      SamResourceId: PatchNodeFunction
   CompleteNodeFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: src/
+      CodeUri: CompleteNodeFunction
       Handler: handlers.complete_node.handler
       Events:
         Api:
           Type: Api
           Properties:
-            RestApiId: !Ref BackendApi
+            RestApiId:
+              Ref: BackendApi
             Path: /node/{node_id}/complete
             Method: POST
-
+    Metadata:
+      SamResourceId: CompleteNodeFunction
   GoogleTokenFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: src/
+      CodeUri: GoogleTokenFunction
       Handler: handlers.google_token.handler
       Policies:
-        - DynamoDBCrudPolicy:
-            TableName: !Ref IntegrationsTable
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: IntegrationsTable
       Events:
         Api:
           Type: Api
           Properties:
-            RestApiId: !Ref BackendApi
+            RestApiId:
+              Ref: BackendApi
             Path: /integrations/google/token
             Method: ANY
-
+    Metadata:
+      SamResourceId: GoogleTokenFunction
   GoogleGmailLabelsFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: src/
+      CodeUri: GoogleGmailLabelsFunction
       Handler: handlers.google_gmail_labels.handler
       Policies:
-        - DynamoDBReadPolicy:
-            TableName: !Ref IntegrationsTable
+      - DynamoDBReadPolicy:
+          TableName:
+            Ref: IntegrationsTable
       Events:
         Api:
           Type: Api
           Properties:
-            RestApiId: !Ref BackendApi
+            RestApiId:
+              Ref: BackendApi
             Path: /integrations/google/gmail/labels
             Method: GET
-
+    Metadata:
+      SamResourceId: GoogleGmailLabelsFunction
 Outputs:
   ApiEndpoint:
     Description: API Gateway endpoint URL
-    Value: !Sub https://${BackendApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/
+    Value:
+      Fn::Sub: https://${BackendApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/
   CognitoUserPoolId:
     Description: Cognito User Pool ID
-    Value: !Ref CognitoUserPool
+    Value:
+      Ref: CognitoUserPool
   CognitoUserPoolClientId:
     Description: Cognito User Pool Client ID
-    Value: !Ref CognitoUserPoolClient
+    Value:
+      Ref: CognitoUserPoolClient
   CognitoIdentityPoolId:
     Description: Cognito Identity Pool ID
-    Value: !Ref CognitoIdentityPool
+    Value:
+      Ref: CognitoIdentityPool
   CognitoHostedUiDomain:
     Description: Cognito Hosted UI domain
-    Value: !Sub https://${CognitoDomainPrefix}.auth.${AWS::Region}.amazoncognito.com
+    Value:
+      Fn::Sub: https://${CognitoDomainPrefix}.auth.${AWS::Region}.amazoncognito.com
   IntegrationsTableName:
     Description: Integrations DynamoDB table name
-    Value: !Ref IntegrationsTable
+    Value:
+      Ref: IntegrationsTable
