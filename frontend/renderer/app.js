@@ -17,6 +17,10 @@ const pulseRing = document.getElementById('pulse-ring');
 const brainIcon = document.getElementById('brain-icon');
 const cardsStack = document.getElementById('cards-stack');
 const loadingBar = document.querySelector('.loading-bar');
+const expiredMessage = document.getElementById('expired-message');
+
+// Timer state
+let timerPermanentlyPaused = false;
 
 // Mock Data for Stacked UI
 const MOCK_TASKS = [
@@ -90,6 +94,11 @@ function getIconForType(type) {
 
 // Helper: Render mock cards
 function renderCards(tasks) {
+  // Reset timer state for fresh card set
+  timerPermanentlyPaused = false;
+  cardsStack.classList.remove('timer-paused');
+  expiredMessage.classList.remove('visible');
+  
   // Clear existing cards (keep loading bar)
   const existingCards = cardsStack.querySelectorAll('.action-card');
   existingCards.forEach(card => card.remove());
@@ -340,7 +349,14 @@ cardsStack.addEventListener('dblclick', (e) => {
 });
 
 // Hover to select a card (for Enter/Delete workflow)
+// Also permanently pauses the countdown timer
 cardsStack.addEventListener('mouseenter', (e) => {
+  // Permanently pause timer on any hover
+  if (!timerPermanentlyPaused) {
+    timerPermanentlyPaused = true;
+    cardsStack.classList.add('timer-paused');
+  }
+  
   const card = e.target.closest('.action-card');
   if (card && !card.classList.contains('approved') && !card.classList.contains('dismissed')) {
     selectCard(card);
@@ -371,6 +387,14 @@ document.addEventListener('keydown', (e) => {
   const isEditing = document.querySelector('.action-card.editing');
   if (isEditing) return;
   
+  // Any keyboard interaction pauses the timer (user is engaging)
+  if ((e.key === 'Enter' || e.key === 'Delete' || e.key === 'Backspace') && selectedCard) {
+    if (!timerPermanentlyPaused) {
+      timerPermanentlyPaused = true;
+      cardsStack.classList.add('timer-paused');
+    }
+  }
+  
   // Enter to approve selected card
   if (e.key === 'Enter' && selectedCard) {
     e.preventDefault();
@@ -391,12 +415,27 @@ document.addEventListener('keydown', (e) => {
 });
 
 
-// Auto-dismiss when loading bar animation finishes
-// Note: Animation is paused by CSS hover state on .cards-stack
+// Handle loading bar countdown completion
+// If timer completes without hover, show expiration message
 loadingBar.addEventListener('animationend', () => {
-  if (currentState === State.CONFIRMED) {
-    window.braindump.hideWindow();
+  if (currentState === State.CONFIRMED && !timerPermanentlyPaused) {
+    // Timer expired without user interaction - show expiration message
+    // Hide all cards and show the expired message
+    const cards = cardsStack.querySelectorAll('.action-card');
+    cards.forEach(card => {
+      card.style.opacity = '0.4';
+      card.style.pointerEvents = 'none';
+    });
+    loadingBar.style.display = 'none';
+    expiredMessage.classList.add('visible');
   }
+});
+
+// Open Dashboard button handler
+document.getElementById('open-dashboard-btn').addEventListener('click', () => {
+  // Placeholder: Could open a dashboard URL or trigger IPC to main process
+  console.log('[DASHBOARD] Opening dashboard...');
+  window.braindump.hideWindow();
 });
 
 // Update pulse ring size based on loudness (0 to 1)
