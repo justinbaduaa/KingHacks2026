@@ -1,6 +1,6 @@
 // BrainDump - Minimal Brain with Loudness-Based Pulse + Action Cards
 
-const State = { IDLE: 'idle', LISTENING: 'listening', PROCESSING: 'processing', CONFIRMED: 'confirmed' };
+const State = { IDLE: 'idle', LISTENING: 'listening', PROCESSING: 'processing', CONFIRMED: 'confirmed', COMPLETING: 'completing' };
 let currentState = State.IDLE;
 let animationFrameId = null;
 let keysHeld = false;
@@ -262,22 +262,41 @@ function approveCard(card, index) {
   
   console.log(`[APPROVED] Task ${index}: ${MOCK_TASKS[index].text}`);
   
+  // Check if this is the last remaining card
+  const remainingCards = cardsStack.querySelectorAll('.action-card:not(.approved):not(.dismissed)');
+  const isLastCard = remainingCards.length === 1;
+  
   // Add approved state
   card.classList.add('approved');
   
-  // Small delay for the glow, then slide off
+  // Create and inject the checkmark element
+  const checkmark = document.createElement('div');
+  checkmark.className = 'approve-checkmark';
+  checkmark.innerHTML = `<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>`;
+  card.appendChild(checkmark);
+  
+  // Trigger the collapse animation after checkmark pops
   setTimeout(() => {
-    // Create subtle ghost trail
-    createGhostTrail(card);
-    
     card.classList.add('animate-send');
     
-    // Remove after animation completes
-    setTimeout(() => card.remove(), 550);
-  }, 80);
+    // Remove after collapse completes
+    setTimeout(() => {
+      card.remove();
+      
+      // If this was the last card, transition to completing state then hide
+      if (isLastCard) {
+        setState(State.COMPLETING);
+        setTimeout(() => {
+          window.braindump.hideWindow();
+        }, 100);
+      }
+    }, 400);
+  }, 150);
   
-  // Select next card
-  selectNextCard();
+  // Select next card immediately (if not the last one)
+  if (!isLastCard) {
+    selectNextCard();
+  }
 }
 
 // Dismiss a card
@@ -285,6 +304,10 @@ function dismissCard(card, index) {
   if (!card || card.classList.contains('dismissed')) return;
   
   console.log(`[DISMISSED] Task ${index}: ${MOCK_TASKS[index].text}`);
+  
+  // Check if this is the last remaining card
+  const remainingCards = cardsStack.querySelectorAll('.action-card:not(.approved):not(.dismissed)');
+  const isLastCard = remainingCards.length === 1;
   
   // Get card center for particle burst
   const rect = card.getBoundingClientRect();
@@ -296,10 +319,23 @@ function dismissCard(card, index) {
   
   // Add classes for poof animation
   card.classList.add('dismissed', 'animate-poof');
-  setTimeout(() => card.remove(), 500);
   
-  // Select next card
-  selectNextCard();
+  setTimeout(() => {
+    card.remove();
+    
+    // If this was the last card, transition to completing state then hide
+    if (isLastCard) {
+      setState(State.COMPLETING);
+      setTimeout(() => {
+        window.braindump.hideWindow();
+      }, 100);
+    }
+  }, 500);
+  
+  // Select next card immediately (if not the last one)
+  if (!isLastCard) {
+    selectNextCard();
+  }
 }
 
 // Inline editing - double-click to edit
@@ -481,6 +517,12 @@ function setState(newState, data = {}) {
       brainContainer.classList.add('hidden');
       cardsStack.classList.add('visible');
       break;
+      
+    case State.COMPLETING:
+      // Terminal state after all tasks completed - brain stays hidden
+      brainContainer.classList.add('hidden');
+      cardsStack.classList.remove('visible');
+      break;
   }
 }
 
@@ -611,9 +653,16 @@ window.braindump.onStopListening(() => {
   }
 });
 
-// Window hidden - reset state
+// Window hidden - reset state (but not if completing tasks)
 window.braindump.onWindowHidden(() => {
-  setState(State.IDLE);
+  // Only reset to IDLE if we weren't completing tasks
+  // This prevents the brain from flashing when tasks finish
+  if (currentState !== State.COMPLETING) {
+    setState(State.IDLE);
+  } else {
+    // Reset for next session, but keep brain hidden for now
+    currentState = State.IDLE;
+  }
 });
 
 // Escape to cancel

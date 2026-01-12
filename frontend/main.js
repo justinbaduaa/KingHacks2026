@@ -10,7 +10,8 @@ const path = require("path");
 let mainWindow = null;
 let isShortcutHeld = false;
 
-function createWindow() {
+// creates the overlay window with some special settings, like transparent and always on top, no taskbar
+function createWindow() { 
   const { width: screenWidth, height: screenHeight } =
     screen.getPrimaryDisplay().workAreaSize;
 
@@ -59,6 +60,7 @@ function createWindow() {
   });
 }
 
+// shwos the overlay at the bottom centre of the current screen (semi-works with multidisplays)
 function showWindow() {
   if (mainWindow) {
     // Get the display where the cursor currently is
@@ -91,6 +93,7 @@ function showWindow() {
   }
 }
 
+// hides the window and notifies renderer
 function hideWindow() {
   if (mainWindow && mainWindow.isVisible()) {
     mainWindow.hide();

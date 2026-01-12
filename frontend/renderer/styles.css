@@ -313,24 +313,62 @@ html, body {
   box-shadow: 0 0 12px rgba(52, 199, 89, 0.3);
 }
 
-/* Approve: Modern polished slide animation */
+/* Approve: Checkmark pop + collapse animation */
 .action-card.approved.animate-send {
-  animation: sendSlide 0.55s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
+  animation: collapseCard 0.35s cubic-bezier(0.4, 0, 0.2, 1) 0.15s forwards;
   will-change: transform, opacity;
+  overflow: hidden;
 }
 
-@keyframes sendSlide {
+@keyframes collapseCard {
   0% {
-    transform: scale(1) translateX(0);
     opacity: 1;
+    transform: scale(1);
   }
-  20% {
-    transform: scale(1.01) translateX(-6px);
+  100% {
+    opacity: 0;
+    transform: scale(0.95) translateY(-10px);
+  }
+}
+
+/* Checkmark overlay that pops */
+.approve-checkmark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  width: 48px;
+  height: 48px;
+  background: rgba(52, 199, 89, 0.95);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  animation: checkmarkPop 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  box-shadow: 0 4px 20px rgba(52, 199, 89, 0.4);
+}
+
+.approve-checkmark svg {
+  width: 24px;
+  height: 24px;
+  stroke: white;
+  stroke-width: 3;
+  fill: none;
+}
+
+@keyframes checkmarkPop {
+  0% {
+    transform: translate(-50%, -50%) scale(0);
+    opacity: 0;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.2);
     opacity: 1;
   }
   100% {
-    transform: scale(0.99) translateX(110%);
-    opacity: 0;
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
   }
 }
 
