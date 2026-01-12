@@ -15,15 +15,56 @@ let mediaStream = null;
 const brainContainer = document.getElementById('brain-container');
 const pulseRing = document.getElementById('pulse-ring');
 const brainIcon = document.getElementById('brain-icon');
-const actionCard = document.getElementById('action-card');
-const actionText = document.getElementById('action-text');
+const cardsStack = document.getElementById('cards-stack');
 const loadingBar = document.querySelector('.loading-bar');
 
-// Hardcoded reminder for demo
-const DEMO_REMINDER = "Email Sarah tomorrow about the project update";
+// Mock Data for Stacked UI
+const MOCK_TASKS = [
+  { type: 'Reminder', text: "Email Sarah tomorrow about the project update" },
+  { type: 'Calendar', text: "Meeting with Design Team at 2:00 PM" },
+  { type: 'Todo', text: "Research competitors for new feature" }
+];
+
+// Helper: Render mock cards
+function renderCards(tasks) {
+  // Clear existing cards (keep loading bar)
+  const existingCards = cardsStack.querySelectorAll('.action-card');
+  existingCards.forEach(card => card.remove());
+  
+  // Create and append new cards (reverse order so first item is on top in DOM)
+  // Actually, standard stacking context means last in DOM is on top,
+  // BUT we want visual order 1st item = top.
+  // CSS :nth-child(1) is top card.
+  // So we just append them in order.
+  
+  tasks.forEach((task, index) => {
+    const card = document.createElement('div');
+    card.className = 'action-card';
+    if (index === tasks.length - 1) card.classList.add('last-card');
+    card.innerHTML = `
+      <div class="action-icon">
+        <svg viewBox="0 0 24 24">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+        </svg>
+      </div>
+      <div class="action-content">
+        <div class="action-type">${task.type}</div>
+        <div class="action-text">${task.text}</div>
+      </div>
+      <div class="action-status">
+        <svg viewBox="0 0 24 24">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+      </div>
+    `;
+    // Insert before loading bar
+    cardsStack.insertBefore(card, loadingBar);
+  });
+}
 
 // Auto-dismiss when loading bar animation finishes
-// Note: Animation is paused by CSS hover state, so this naturally handles the "hover to stay" feature
+// Note: Animation is paused by CSS hover state on .cards-stack
 loadingBar.addEventListener('animationend', () => {
   if (currentState === State.CONFIRMED) {
     window.braindump.hideWindow();
@@ -55,12 +96,12 @@ function setState(newState, data = {}) {
       pulseRing.style.opacity = '0';
       brainIcon.style.transform = 'scale(1)';
       brainContainer.classList.remove('hidden');
-      actionCard.classList.remove('visible');
+      cardsStack.classList.remove('visible');
       break;
       
     case State.LISTENING:
       brainContainer.classList.remove('hidden');
-      actionCard.classList.remove('visible');
+      cardsStack.classList.remove('visible');
       startAudioAnalysis();
       break;
       
@@ -71,8 +112,7 @@ function setState(newState, data = {}) {
       
     case State.CONFIRMED:
       brainContainer.classList.add('hidden');
-      actionText.textContent = data.text || DEMO_REMINDER;
-      actionCard.classList.add('visible');
+      cardsStack.classList.add('visible');
       break;
   }
 }
@@ -169,8 +209,11 @@ async function processAndShowAction() {
   setState(State.PROCESSING);
   await sleep(300);
   
-  // Show the action card with hardcoded reminder
-  setState(State.CONFIRMED, { text: DEMO_REMINDER });
+  // Generate and render cards before showing
+  renderCards(MOCK_TASKS);
+  
+  // Show the card stack
+  setState(State.CONFIRMED);
 }
 
 // Track if modifier keys are still held

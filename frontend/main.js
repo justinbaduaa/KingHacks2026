@@ -15,7 +15,7 @@ function createWindow() {
     screen.getPrimaryDisplay().workAreaSize;
 
   const windowWidth = 400;
-  const windowHeight = 150;
+  const windowHeight = 450;
 
   mainWindow = new BrowserWindow({
     width: windowWidth,
@@ -68,7 +68,7 @@ function showWindow() {
     const { x: screenX, y: screenY } = currentDisplay.workArea;
     
     const windowWidth = 400;
-    const windowHeight = 150;
+    const windowHeight = 450;
     
     // Calculate position at bottom center of the current screen
     const newX = Math.round(screenX + (screenWidth - windowWidth) / 2);
