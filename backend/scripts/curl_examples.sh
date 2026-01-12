@@ -2,7 +2,7 @@
 
 # Example curl commands for the API
 
-BASE_URL="${API_URL:-http://localhost:3000}"
+BASE_URL="${API_URL:-https://x4exeundl2.execute-api.us-east-1.amazonaws.com/Prod/}"
 
 # Ingest
 echo "=== Ingest ==="
