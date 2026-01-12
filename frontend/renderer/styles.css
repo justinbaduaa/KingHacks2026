@@ -13,9 +13,9 @@ html, body {
 /* ===== Brain Container (Listening State) ===== */
 .brain-container {
   position: fixed;
-  top: 50%;
+  bottom: 50px; /* Anchor to bottom */
   left: 50%;
-  transform: translate(-50%, -50%);
+  transform: translateX(-50%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -42,15 +42,16 @@ html, body {
 
 .pulse-ring {
   position: absolute;
-  width: 60px;
-  height: 60px;
+  width: 65px;
+  height: 65px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 150, 180, 0.18) 0%, rgba(255, 150, 180, 0) 50%);
+  background: radial-gradient(circle, rgba(255, 180, 200, 0.2) 0%, rgba(255, 180, 200, 0.08) 25%, rgba(255, 180, 200, 0) 45%);
   z-index: 1;
   opacity: 0;
   transform: scale(1);
   transition: none;
   pointer-events: none;
+  filter: blur(8px);
 }
 
 .brain-container.listening .pulse-ring {
@@ -62,36 +63,96 @@ html, body {
   transform: scale(1);
 }
 
-/* ===== Action Card ===== */
-.action-card {
+/* ===== Cards Stack Container ===== */
+.cards-stack {
   position: fixed;
-  top: 50%;
+  bottom: 55px;
   left: 50%;
-  transform: translate(-50%, -50%) translateY(4px);
+  transform: translateX(-50%);
+  width: 360px;
+  /* Auto height to fit content */
+  z-index: 100;
   
   display: flex;
-  align-items: center;
-  gap: 12px;
-  
-  padding: 12px 16px;
-  min-width: 280px;
-  max-width: 380px;
-  
-  background: rgba(28, 28, 30, 0.92);
-  backdrop-filter: blur(40px) saturate(180%);
-  -webkit-backdrop-filter: blur(40px) saturate(180%);
-  border: 0.5px solid rgba(255, 255, 255, 0.08);
-  border-radius: 16px;
+  flex-direction: column;
+  /* Align to bottom so it grows upwards? No, flex column flow is top-down. 
+     Position fixed bottom anchors the *container*. 
+     We need to make sure the stack sits at bottom. */
+  justify-content: flex-end;
   
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
-.action-card.visible {
+.cards-stack.visible {
   opacity: 1;
-  transform: translate(-50%, -50%) translateY(0);
+  transform: translateX(-50%);
   pointer-events: auto;
+}
+
+/* Hit area expansion */
+.cards-stack:hover::before {
+  content: '';
+  position: absolute;
+  bottom: -20px;
+  left: 0;
+  width: 100%;
+  height: 120%; /* Dynamic coverage */
+  background: transparent;
+  z-index: -1;
+}
+
+/* ===== Action Card (in Stack) ===== */
+.action-card {
+  position: relative; /* flow naturally */
+  width: 100%;
+  min-height: 72px;
+  
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  
+  padding: 12px 16px;
+  
+  background: rgba(28, 28, 30, 0.95);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border: 0.5px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+  
+  /* Transition margins for fan effect */
+  transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+              
+  transform-origin: center center;
+  
+  /* Collapsed state: Negative margin to pull next card up */
+  margin-bottom: -62px; 
+}
+
+/* Reset last card margin so it doesn't pull nothing */
+.action-card.last-card {
+  margin-bottom: 0;
+}
+
+/* Stacking Order & Scale */
+.action-card:nth-child(1) { z-index: 3; transform: scale(1); }
+.action-card:nth-child(2) { z-index: 2; transform: scale(0.96); opacity: 0.8; }
+.action-card:nth-child(3) { z-index: 1; transform: scale(0.92); opacity: 0.6; }
+
+/* Fanning Effect - On Hover */
+/* Switch to positive spacing */
+.cards-stack:hover .action-card {
+  margin-bottom: 12px;
+  transform: scale(1);
+  opacity: 1;
+}
+
+/* Hovering specific cards highlights them */
+.action-card:hover {
+  background: rgba(40, 40, 42, 1);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 /* Simple icon container */
@@ -114,6 +175,53 @@ html, body {
   stroke-width: 1.5;
 }
 
+/* Type-specific icon colors */
+.action-icon[data-type="reminder"] {
+  background: rgba(255, 179, 64, 0.15);
+}
+.action-icon[data-type="reminder"] svg {
+  stroke: #FFB340;
+}
+
+.action-icon[data-type="calendar"] {
+  background: rgba(90, 200, 250, 0.15);
+}
+.action-icon[data-type="calendar"] svg {
+  stroke: #5AC8FA;
+}
+
+.action-icon[data-type="todo"],
+.action-icon[data-type="task"] {
+  background: rgba(52, 199, 89, 0.15);
+}
+.action-icon[data-type="todo"] svg,
+.action-icon[data-type="task"] svg {
+  stroke: #34C759;
+}
+
+.action-icon[data-type="note"],
+.action-icon[data-type="notes"] {
+  background: rgba(175, 130, 255, 0.15);
+}
+.action-icon[data-type="note"] svg,
+.action-icon[data-type="notes"] svg {
+  stroke: #AF82FF;
+}
+
+.action-icon[data-type="event"] {
+  background: rgba(255, 214, 10, 0.15);
+}
+.action-icon[data-type="event"] svg {
+  stroke: #FFD60A;
+}
+
+.action-icon[data-type="meeting"] {
+  background: rgba(100, 210, 255, 0.15);
+}
+.action-icon[data-type="meeting"] svg {
+  stroke: #64D2FF;
+}
+
 .action-content {
   flex: 1;
   min-width: 0;
@@ -129,38 +237,404 @@ html, body {
 }
 
 .action-text {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 400;
   color: rgba(255, 255, 255, 0.88);
-  line-height: 1.35;
+  line-height: 1.4;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  white-space: normal;
 }
 
-/* Minimal checkmark */
-.action-status {
-  width: 20px;
-  height: 20px;
+/* Action Buttons Container */
+.action-buttons {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.action-card:hover .action-buttons {
+  opacity: 1;
+}
+
+.action-buttons button {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
+  transition: all 0.15s ease;
 }
 
-.action-status svg {
+.btn-approve {
+  background: rgba(52, 199, 89, 0.15);
+}
+
+.btn-approve:hover {
+  background: rgba(52, 199, 89, 0.4);
+}
+
+.btn-approve svg {
   width: 14px;
   height: 14px;
   stroke: #34C759;
   fill: none;
-  stroke-width: 2;
-  opacity: 0;
-  transform: scale(0.8);
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  stroke-width: 2.5;
 }
 
-.action-card.visible .action-status svg {
+.btn-dismiss {
+  background: rgba(255, 69, 58, 0.15);
+}
+
+.btn-dismiss:hover {
+  background: rgba(255, 69, 58, 0.4);
+}
+
+.btn-dismiss svg {
+  width: 14px;
+  height: 14px;
+  stroke: #FF453A;
+  fill: none;
+  stroke-width: 2.5;
+}
+
+/* Card States */
+.action-card.approved {
+  border-color: rgba(52, 199, 89, 0.5);
+  box-shadow: 0 0 12px rgba(52, 199, 89, 0.3);
+}
+
+/* Approve: Checkmark pop + collapse animation */
+.action-card.approved.animate-send {
+  animation: collapseCard 0.35s cubic-bezier(0.4, 0, 0.2, 1) 0.15s forwards;
+  will-change: transform, opacity;
+  overflow: hidden;
+}
+
+@keyframes collapseCard {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.95) translateY(-10px);
+  }
+}
+
+/* Checkmark overlay that pops */
+.approve-checkmark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  width: 48px;
+  height: 48px;
+  background: rgba(52, 199, 89, 0.95);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  animation: checkmarkPop 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  box-shadow: 0 4px 20px rgba(52, 199, 89, 0.4);
+}
+
+.approve-checkmark svg {
+  width: 24px;
+  height: 24px;
+  stroke: white;
+  stroke-width: 3;
+  fill: none;
+}
+
+@keyframes checkmarkPop {
+  0% {
+    transform: translate(-50%, -50%) scale(0);
+    opacity: 0;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.2);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+}
+
+/* Success glow effect */
+.action-card.approved::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 18px;
+  background: linear-gradient(90deg, rgba(52, 199, 89, 0.3), rgba(52, 199, 89, 0));
+  opacity: 0;
+  z-index: -1;
+  animation: successGlow 0.4s ease-out forwards;
+}
+
+@keyframes successGlow {
+  0% { opacity: 0; transform: scaleX(0.9); }
+  40% { opacity: 1; }
+  100% { opacity: 0; transform: scaleX(1.05); }
+}
+
+/* Dismiss: "Poof" explosion animation */
+.action-card.dismissed.animate-poof {
+  animation: poofExplode 0.5s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
+}
+
+@keyframes poofExplode {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+    filter: blur(0);
+  }
+  30% {
+    transform: scale(1.05);
+    opacity: 0.9;
+    filter: blur(1px);
+  }
+  100% {
+    transform: scale(0.3);
+    opacity: 0;
+    filter: blur(6px);
+  }
+}
+
+/* Particle container */
+.particle-container {
+  position: fixed;
+  pointer-events: none;
+  z-index: 1000;
+}
+
+/* Individual particle */
+.particle {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+/* Poof particles */
+.particle.poof {
+  background: radial-gradient(circle, rgba(255, 69, 58, 0.9) 0%, rgba(255, 69, 58, 0) 70%);
+  animation: poofParticle 0.6s ease-out forwards;
+}
+
+@keyframes poofParticle {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.8;
+  }
+  60% {
+    opacity: 0.5;
+  }
+  100% {
+    transform: translate(var(--tx), var(--ty)) scale(0.2);
+    opacity: 0;
+  }
+}
+
+/* Ghost trail for send effect */
+.ghost-trail {
+  position: fixed;
+  pointer-events: none;
+  border-radius: 16px;
+  background: rgba(52, 199, 89, 0.12);
+  backdrop-filter: blur(12px);
+  z-index: 99;
+  animation: ghostFade 0.5s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
+}
+
+@keyframes ghostFade {
+  0% {
+    opacity: 0.5;
+    transform: translateX(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(20px) scale(0.98);
+  }
+}
+
+/* Checkmark burst effect */
+.check-burst {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 60px;
+  height: 60px;
+  pointer-events: none;
+  z-index: 100;
+}
+
+.check-burst svg {
+  width: 100%;
+  height: 100%;
+  stroke: #34C759;
+  fill: none;
+  stroke-width: 3;
+  animation: checkBurst 0.4s ease-out forwards;
+}
+
+@keyframes checkBurst {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.3);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+
+.action-card.dismissed {
+  opacity: 0;
+  transform: translateX(20px) scale(0.95);
+  transition: all 0.3s ease;
+}
+
+.action-card.editing {
+  border-color: rgba(100, 210, 255, 0.5);
+  box-shadow: 0 0 12px rgba(100, 210, 255, 0.2);
+}
+
+.action-card.selected {
+  border-color: rgba(255, 255, 255, 0.4);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.15);
+}
+
+.action-card.selected .action-buttons {
   opacity: 1;
-  transform: scale(1);
-  transition-delay: 0.15s;
+}
+
+.inline-edit-input {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(100, 210, 255, 0.5);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 14px;
+  font-family: inherit;
+  color: rgba(255, 255, 255, 0.95);
+  outline: none;
+}
+
+/* ===== Loading Pill (Redesigned) ===== */
+.loading-bar {
+  /* Position in flow suitable for flex stack */
+  position: relative;
+  width: 120px;
+  height: 4px;
+  align-self: center;
+  margin-top: 16px; /* Spacing from cards */
+  
+  /* Track Styling */
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  overflow: hidden;
+  z-index: 10;
+}
+
+/* The filling part of the bar */
+.loading-bar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 100%; /* controlled by animation */
+  background: rgba(255, 180, 200, 0.8);
+  border-radius: 10px;
+}
+
+@keyframes countdown {
+  from { width: 100%; }
+  to { width: 0%; }
+}
+
+/* Apply animation to the pseudo-element fill */
+.cards-stack.visible .loading-bar::after {
+  animation: countdown 7s linear forwards;
+}
+
+/* Timer permanently paused (after hover) - hide completely */
+.cards-stack.timer-paused .loading-bar {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.cards-stack.timer-paused .loading-bar::after {
+  animation-play-state: paused;
+}
+
+/* ===== Expired Message ===== */
+.expired-message {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 20px 24px;
+  margin-top: 16px;
+  
+  background: rgba(28, 28, 30, 0.95);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border: 0.5px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+  
+  animation: fadeIn 0.3s ease forwards;
+}
+
+.expired-message.visible {
+  display: flex;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.expired-message-text {
+  font-size: 14px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.7);
+  text-align: center;
+  line-height: 1.5;
+}
+
+.expired-message-btn {
+  padding: 8px 16px;
+  background: rgba(255, 180, 200, 0.2);
+  border: 1px solid rgba(255, 180, 200, 0.3);
+  border-radius: 10px;
+  color: rgba(255, 180, 200, 0.9);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.expired-message-btn:hover {
+  background: rgba(255, 180, 200, 0.35);
+  border-color: rgba(255, 180, 200, 0.5);
 }

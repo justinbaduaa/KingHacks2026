@@ -10,12 +10,13 @@ const path = require("path");
 let mainWindow = null;
 let isShortcutHeld = false;
 
-function createWindow() {
+// creates the overlay window with some special settings, like transparent and always on top, no taskbar
+function createWindow() { 
   const { width: screenWidth, height: screenHeight } =
     screen.getPrimaryDisplay().workAreaSize;
 
   const windowWidth = 400;
-  const windowHeight = 150;
+  const windowHeight = 450;
 
   mainWindow = new BrowserWindow({
     width: windowWidth,
@@ -59,6 +60,7 @@ function createWindow() {
   });
 }
 
+// shwos the overlay at the bottom centre of the current screen (semi-works with multidisplays)
 function showWindow() {
   if (mainWindow) {
     // Get the display where the cursor currently is
@@ -68,7 +70,7 @@ function showWindow() {
     const { x: screenX, y: screenY } = currentDisplay.workArea;
     
     const windowWidth = 400;
-    const windowHeight = 150;
+    const windowHeight = 450;
     
     // Calculate position at bottom center of the current screen
     const newX = Math.round(screenX + (screenWidth - windowWidth) / 2);
@@ -91,6 +93,7 @@ function showWindow() {
   }
 }
 
+// hides the window and notifies renderer
 function hideWindow() {
   if (mainWindow && mainWindow.isVisible()) {
     mainWindow.hide();
