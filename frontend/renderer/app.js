@@ -21,6 +21,7 @@ const expiredMessage = document.getElementById('expired-message');
 
 // Timer state
 let timerPermanentlyPaused = false;
+let expiredDismissTimeout = null;
 
 // Mock Data for Stacked UI
 const MOCK_TASKS = [
@@ -94,10 +95,31 @@ function getIconForType(type) {
 
 // Helper: Render mock cards
 function renderCards(tasks) {
-  // Reset timer state for fresh card set
+  // Reset all timer states for fresh card set
   timerPermanentlyPaused = false;
   cardsStack.classList.remove('timer-paused');
-  expiredMessage.classList.remove('visible');
+  
+  // Clear any pending expired message dismiss timeout
+  if (expiredDismissTimeout) {
+    clearTimeout(expiredDismissTimeout);
+    expiredDismissTimeout = null;
+  }
+  
+  // Reset expired message state completely
+  expiredMessage.classList.remove('visible', 'hover-paused');
+  const expiredCountdownBar = expiredMessage.querySelector('.expired-countdown-bar');
+  if (expiredCountdownBar) {
+    // Force reset the animation by removing and re-adding the element
+    expiredCountdownBar.style.animation = 'none';
+    expiredCountdownBar.offsetHeight; // Trigger reflow
+    expiredCountdownBar.style.animation = '';
+  }
+  
+  // Reset the loading bar for fresh countdown
+  loadingBar.style.display = '';
+  loadingBar.style.animation = 'none';
+  loadingBar.offsetHeight; // Trigger reflow
+  loadingBar.style.animation = '';
   
   // Clear existing cards (keep loading bar)
   const existingCards = cardsStack.querySelectorAll('.action-card');
@@ -455,20 +477,42 @@ document.addEventListener('keydown', (e) => {
 // If timer completes without hover, show expiration message
 loadingBar.addEventListener('animationend', () => {
   if (currentState === State.CONFIRMED && !timerPermanentlyPaused) {
-    // Timer expired without user interaction - show expiration message
-    // Hide all cards and show the expired message
+    // Timer expired without user interaction
+    // Remove all task cards completely and show only the expired message
     const cards = cardsStack.querySelectorAll('.action-card');
-    cards.forEach(card => {
-      card.style.opacity = '0.4';
-      card.style.pointerEvents = 'none';
-    });
+    cards.forEach(card => card.remove());
     loadingBar.style.display = 'none';
     expiredMessage.classList.add('visible');
+    
+    // Auto-dismiss after the countdown bar animation (3 seconds)
+    expiredDismissTimeout = setTimeout(() => {
+      window.braindump.hideWindow();
+    }, 3000);
   }
+});
+
+// Pause expired countdown on hover
+expiredMessage.addEventListener('mouseenter', () => {
+  if (expiredDismissTimeout) {
+    clearTimeout(expiredDismissTimeout);
+    expiredDismissTimeout = null;
+  }
+  // Pause the CSS animation
+  const countdownBar = expiredMessage.querySelector('.expired-countdown-bar');
+  if (countdownBar) {
+    countdownBar.style.animationPlayState = 'paused';
+    countdownBar.querySelector('::after')?.style?.setProperty('animation-play-state', 'paused');
+  }
+  expiredMessage.classList.add('hover-paused');
 });
 
 // Open Dashboard button handler
 document.getElementById('open-dashboard-btn').addEventListener('click', () => {
+  // Clear any pending dismiss
+  if (expiredDismissTimeout) {
+    clearTimeout(expiredDismissTimeout);
+    expiredDismissTimeout = null;
+  }
   // Placeholder: Could open a dashboard URL or trigger IPC to main process
   console.log('[DASHBOARD] Opening dashboard...');
   window.braindump.hideWindow();

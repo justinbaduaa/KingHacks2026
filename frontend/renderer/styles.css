@@ -638,3 +638,40 @@ html, body {
   background: rgba(255, 180, 200, 0.35);
   border-color: rgba(255, 180, 200, 0.5);
 }
+
+/* Expired Message Countdown Bar */
+.expired-countdown-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 0 0 16px 16px;
+  overflow: hidden;
+}
+
+.expired-countdown-bar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 100%;
+  background: rgba(255, 180, 200, 0.8);
+  border-radius: 0 0 16px 16px;
+}
+
+.expired-message.visible .expired-countdown-bar::after {
+  animation: expiredCountdown 3s linear forwards;
+}
+
+@keyframes expiredCountdown {
+  from { width: 100%; }
+  to { width: 0%; }
+}
+
+/* Pause countdown on hover */
+.expired-message.hover-paused .expired-countdown-bar::after {
+  animation-play-state: paused;
+}
