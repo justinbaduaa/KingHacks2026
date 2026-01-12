@@ -175,6 +175,53 @@ html, body {
   stroke-width: 1.5;
 }
 
+/* Type-specific icon colors */
+.action-icon[data-type="reminder"] {
+  background: rgba(255, 179, 64, 0.15);
+}
+.action-icon[data-type="reminder"] svg {
+  stroke: #FFB340;
+}
+
+.action-icon[data-type="calendar"] {
+  background: rgba(90, 200, 250, 0.15);
+}
+.action-icon[data-type="calendar"] svg {
+  stroke: #5AC8FA;
+}
+
+.action-icon[data-type="todo"],
+.action-icon[data-type="task"] {
+  background: rgba(52, 199, 89, 0.15);
+}
+.action-icon[data-type="todo"] svg,
+.action-icon[data-type="task"] svg {
+  stroke: #34C759;
+}
+
+.action-icon[data-type="note"],
+.action-icon[data-type="notes"] {
+  background: rgba(175, 130, 255, 0.15);
+}
+.action-icon[data-type="note"] svg,
+.action-icon[data-type="notes"] svg {
+  stroke: #AF82FF;
+}
+
+.action-icon[data-type="event"] {
+  background: rgba(255, 214, 10, 0.15);
+}
+.action-icon[data-type="event"] svg {
+  stroke: #FFD60A;
+}
+
+.action-icon[data-type="meeting"] {
+  background: rgba(100, 210, 255, 0.15);
+}
+.action-icon[data-type="meeting"] svg {
+  stroke: #64D2FF;
+}
+
 .action-content {
   flex: 1;
   min-width: 0;
@@ -203,31 +250,253 @@ html, body {
   white-space: normal;
 }
 
-/* Minimal checkmark */
-.action-status {
-  width: 20px;
-  height: 20px;
+/* Action Buttons Container */
+.action-buttons {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.action-card:hover .action-buttons {
+  opacity: 1;
+}
+
+.action-buttons button {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
+  transition: all 0.15s ease;
 }
 
-.action-status svg {
+.btn-approve {
+  background: rgba(52, 199, 89, 0.15);
+}
+
+.btn-approve:hover {
+  background: rgba(52, 199, 89, 0.4);
+}
+
+.btn-approve svg {
   width: 14px;
   height: 14px;
   stroke: #34C759;
   fill: none;
-  stroke-width: 2;
-  opacity: 0;
-  transform: scale(0.8);
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  stroke-width: 2.5;
 }
 
-.action-card.visible .action-status svg {
+.btn-dismiss {
+  background: rgba(255, 69, 58, 0.15);
+}
+
+.btn-dismiss:hover {
+  background: rgba(255, 69, 58, 0.4);
+}
+
+.btn-dismiss svg {
+  width: 14px;
+  height: 14px;
+  stroke: #FF453A;
+  fill: none;
+  stroke-width: 2.5;
+}
+
+/* Card States */
+.action-card.approved {
+  border-color: rgba(52, 199, 89, 0.5);
+  box-shadow: 0 0 12px rgba(52, 199, 89, 0.3);
+}
+
+/* Approve: Modern polished slide animation */
+.action-card.approved.animate-send {
+  animation: sendSlide 0.55s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
+  will-change: transform, opacity;
+}
+
+@keyframes sendSlide {
+  0% {
+    transform: scale(1) translateX(0);
+    opacity: 1;
+  }
+  20% {
+    transform: scale(1.01) translateX(-6px);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.99) translateX(110%);
+    opacity: 0;
+  }
+}
+
+/* Success glow effect */
+.action-card.approved::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 18px;
+  background: linear-gradient(90deg, rgba(52, 199, 89, 0.3), rgba(52, 199, 89, 0));
+  opacity: 0;
+  z-index: -1;
+  animation: successGlow 0.4s ease-out forwards;
+}
+
+@keyframes successGlow {
+  0% { opacity: 0; transform: scaleX(0.9); }
+  40% { opacity: 1; }
+  100% { opacity: 0; transform: scaleX(1.05); }
+}
+
+/* Dismiss: "Poof" explosion animation */
+.action-card.dismissed.animate-poof {
+  animation: poofExplode 0.5s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
+}
+
+@keyframes poofExplode {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+    filter: blur(0);
+  }
+  30% {
+    transform: scale(1.05);
+    opacity: 0.9;
+    filter: blur(1px);
+  }
+  100% {
+    transform: scale(0.3);
+    opacity: 0;
+    filter: blur(6px);
+  }
+}
+
+/* Particle container */
+.particle-container {
+  position: fixed;
+  pointer-events: none;
+  z-index: 1000;
+}
+
+/* Individual particle */
+.particle {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+/* Poof particles */
+.particle.poof {
+  background: radial-gradient(circle, rgba(255, 69, 58, 0.9) 0%, rgba(255, 69, 58, 0) 70%);
+  animation: poofParticle 0.6s ease-out forwards;
+}
+
+@keyframes poofParticle {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.8;
+  }
+  60% {
+    opacity: 0.5;
+  }
+  100% {
+    transform: translate(var(--tx), var(--ty)) scale(0.2);
+    opacity: 0;
+  }
+}
+
+/* Ghost trail for send effect */
+.ghost-trail {
+  position: fixed;
+  pointer-events: none;
+  border-radius: 16px;
+  background: rgba(52, 199, 89, 0.12);
+  backdrop-filter: blur(12px);
+  z-index: 99;
+  animation: ghostFade 0.5s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
+}
+
+@keyframes ghostFade {
+  0% {
+    opacity: 0.5;
+    transform: translateX(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(20px) scale(0.98);
+  }
+}
+
+/* Checkmark burst effect */
+.check-burst {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 60px;
+  height: 60px;
+  pointer-events: none;
+  z-index: 100;
+}
+
+.check-burst svg {
+  width: 100%;
+  height: 100%;
+  stroke: #34C759;
+  fill: none;
+  stroke-width: 3;
+  animation: checkBurst 0.4s ease-out forwards;
+}
+
+@keyframes checkBurst {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.3);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+
+.action-card.dismissed {
+  opacity: 0;
+  transform: translateX(20px) scale(0.95);
+  transition: all 0.3s ease;
+}
+
+.action-card.editing {
+  border-color: rgba(100, 210, 255, 0.5);
+  box-shadow: 0 0 12px rgba(100, 210, 255, 0.2);
+}
+
+.action-card.selected {
+  border-color: rgba(255, 255, 255, 0.4);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.15);
+}
+
+.action-card.selected .action-buttons {
   opacity: 1;
-  transform: scale(1);
-  transition-delay: 0.15s;
+}
+
+.inline-edit-input {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(100, 210, 255, 0.5);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 14px;
+  font-family: inherit;
+  color: rgba(255, 255, 255, 0.95);
+  outline: none;
 }
 
 /* ===== Loading Pill (Redesigned) ===== */
