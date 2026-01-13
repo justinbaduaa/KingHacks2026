@@ -114,7 +114,9 @@ const ICONS = {
 
 // ===== DOM Elements =====
 
+const loginView = document.getElementById('login-view');
 const mainDashboard = document.getElementById('main-dashboard');
+const loginBtn = document.getElementById('login-btn');
 
 const tasksList = document.getElementById('tasks-list');
 const remindersList = document.getElementById('reminders-list');
@@ -214,9 +216,23 @@ function setupNavigation() {
   });
 }
 
+// ===== Login Flow =====
+
+function showDashboard() {
+  loginView.classList.add('hidden');
+  
+  // Small delay for smooth transition
+  setTimeout(() => {
+    mainDashboard.classList.add('visible');
+  }, 100);
+}
+
 // ===== Initialize =====
 
 function init() {
+  // Setup window controls (for frameless window)
+  setupWindowControls();
+  
   // Render all columns
   renderCards(tasksList, MOCK_TASKS, tasksCount);
   renderCards(remindersList, MOCK_REMINDERS, remindersCount);
@@ -225,6 +241,22 @@ function init() {
   
   // Setup navigation
   setupNavigation();
+  
+  // Login button handler
+  loginBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    showDashboard();
+  });
+  
+  // Also allow Enter to login
+  document.querySelectorAll('.login-form input').forEach(input => {
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        showDashboard();
+      }
+    });
+  });
   
   // Card click handlers
   document.addEventListener('click', (e) => {
@@ -235,6 +267,32 @@ function init() {
       // Could open detail modal here
     }
   });
+}
+
+// ===== Window Controls =====
+
+function setupWindowControls() {
+  const btnClose = document.getElementById('btn-close');
+  const btnMinimize = document.getElementById('btn-minimize');
+  const btnMaximize = document.getElementById('btn-maximize');
+  
+  if (btnClose) {
+    btnClose.addEventListener('click', () => {
+      window.braindump.dashboardClose();
+    });
+  }
+  
+  if (btnMinimize) {
+    btnMinimize.addEventListener('click', () => {
+      window.braindump.dashboardMinimize();
+    });
+  }
+  
+  if (btnMaximize) {
+    btnMaximize.addEventListener('click', () => {
+      window.braindump.dashboardMaximize();
+    });
+  }
 }
 
 // Run on DOM ready

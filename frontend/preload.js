@@ -5,8 +5,15 @@ contextBridge.exposeInMainWorld('braindump', {
   simulateVoice: () => ipcRenderer.invoke('simulate-voice'), // simulates voice input
   keysReleased: () => ipcRenderer.invoke('keys-released'), // notifies renderer that keys are released
   openDashboard: () => ipcRenderer.invoke('open-dashboard'), // opens the dashboard window
+  
+  // Dashboard window controls (for custom title bar)
+  dashboardMinimize: () => ipcRenderer.invoke('dashboard-minimize'),
+  dashboardMaximize: () => ipcRenderer.invoke('dashboard-maximize'),
+  dashboardClose: () => ipcRenderer.invoke('dashboard-close'),
+  
   onStartListening: (callback) => ipcRenderer.on('start-listening', callback), // notifies renderer that the overlay is visible
   onStopListening: (callback) => ipcRenderer.on('stop-listening', callback), // notifies renderer that the overlay is hidden
   onCheckKeys: (callback) => ipcRenderer.on('check-keys', callback), // checks if keys are still held
   onWindowHidden: (callback) => ipcRenderer.on('window-hidden', callback),
 });
+

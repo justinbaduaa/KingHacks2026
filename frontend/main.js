@@ -15,8 +15,8 @@ let dashboardWindow = null;
 let tray = null;
 let isShortcutHeld = false;
 
-// Creates the overlay window (lightweight, always-on-top for voice capture)
-function createOverlayWindow() { 
+// creates the overlay window with some special settings, like transparent and always on top, no taskbar
+function createWindow() { 
   const { width: screenWidth, height: screenHeight } =
     screen.getPrimaryDisplay().workAreaSize;
 
@@ -53,21 +53,22 @@ function createOverlayWindow() {
 
   mainWindow.on("blur", () => {
     if (!isShortcutHeld) {
-      hideOverlay();
+      hideWindow();
     }
   });
 
   mainWindow.on("close", (event) => {
     if (!app.isQuitting) {
       event.preventDefault();
-      hideOverlay();
+      hideWindow();
     }
   });
 }
 
-// Shows the overlay at bottom center of current screen
-function showOverlay() {
+// shows the overlay at the bottom centre of the current screen (semi-works with multidisplays)
+function showWindow() {
   if (mainWindow) {
+    // Get the display where the cursor currently is
     const cursorPoint = screen.getCursorScreenPoint();
     const currentDisplay = screen.getDisplayNearestPoint(cursorPoint);
     const { width: screenWidth, height: screenHeight } = currentDisplay.workAreaSize;
@@ -76,9 +77,11 @@ function showOverlay() {
     const windowWidth = 400;
     const windowHeight = 450;
     
+    // Calculate position at bottom center of the current screen
     const newX = Math.round(screenX + (screenWidth - windowWidth) / 2);
     const newY = screenY + screenHeight - windowHeight - 5;
     
+    // Use setBounds for more reliable multi-monitor positioning
     mainWindow.setBounds({
       x: newX,
       y: newY,
@@ -86,22 +89,24 @@ function showOverlay() {
       height: windowHeight
     });
     
+    // Ensure window is visible on all workspaces (helps with multi-monitor)
     mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+
     mainWindow.show();
     mainWindow.focus();
     mainWindow.webContents.send("start-listening");
   }
 }
 
-// Hides the overlay window
-function hideOverlay() {
+// hides the window and notifies renderer
+function hideWindow() {
   if (mainWindow && mainWindow.isVisible()) {
     mainWindow.hide();
     mainWindow.webContents.send("window-hidden");
   }
 }
 
-// Creates the dashboard window (frameless, floating, with vibrancy)
+// Creates the dashboard window - frameless, floating, magical
 function createDashboardWindow() {
   if (dashboardWindow && !dashboardWindow.isDestroyed()) {
     dashboardWindow.show();
@@ -119,12 +124,15 @@ function createDashboardWindow() {
     minHeight: 650,
     x: Math.round((screenWidth - 1200) / 2),
     y: Math.round((screenHeight - 800) / 2),
-    frame: false,
-    titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: 20, y: 18 },
-    vibrancy: 'under-window',
+    frame: false, // Frameless - no native title bar
+    titleBarStyle: 'hidden',
+    trafficLightPosition: { x: -100, y: -100 }, // Hide native traffic lights
+    transparent: false,
+    vibrancy: 'under-window', // macOS native blur
     visualEffectState: 'active',
     backgroundColor: '#00000000',
+    hasShadow: true,
+    roundedCorners: true,
     show: false,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -135,93 +143,106 @@ function createDashboardWindow() {
 
   dashboardWindow.loadFile(path.join(__dirname, "renderer", "dashboard.html"));
 
+  // Show dock icon when dashboard is open (macOS)
   dashboardWindow.once('ready-to-show', () => {
+    if (process.platform === 'darwin') {
+      app.dock.show();
+    }
     dashboardWindow.show();
   });
 
-  // Hide instead of close - stay in background
+  // Hide dock when dashboard closes, but don't quit app
   dashboardWindow.on('close', (event) => {
     if (!app.isQuitting) {
       event.preventDefault();
       dashboardWindow.hide();
+      if (process.platform === 'darwin') {
+        app.dock.hide();
+      }
     }
+  });
+
+  dashboardWindow.on('closed', () => {
+    dashboardWindow = null;
   });
 }
 
-// Opens or focuses the dashboard
+// Opens the dashboard window
 function openDashboard() {
   createDashboardWindow();
 }
 
 // Creates the menu bar tray icon
 function createTray() {
-  // Create brain icon for the tray - resize maintaining aspect ratio
-  const trayIconPath = path.join(__dirname, "renderer", "brain.png");
-  let trayIcon = nativeImage.createFromPath(trayIconPath);
-  // Get original size to calculate aspect ratio
+  // Create a small brain icon for the menu bar
+  const iconPath = path.join(__dirname, "renderer", "brain.png");
+  let trayIcon = nativeImage.createFromPath(iconPath);
+  
+  // Get original size and calculate proper resize maintaining aspect ratio
   const originalSize = trayIcon.getSize();
   const targetHeight = 18;
-  const targetWidth = Math.round((originalSize.width / originalSize.height) * targetHeight);
+  const aspectRatio = originalSize.width / originalSize.height;
+  const targetWidth = Math.round(targetHeight * aspectRatio);
+  
   trayIcon = trayIcon.resize({ width: targetWidth, height: targetHeight });
-  trayIcon.setTemplateImage(true);
+  trayIcon.setTemplateImage(true); // Makes it adapt to dark/light mode on macOS
   
   tray = new Tray(trayIcon);
   tray.setToolTip('SecondBrain');
   
-  const contextMenu = Menu.buildFromTemplate([
-    {
-      label: 'Open Dashboard',
-      click: () => openDashboard(),
-    },
-    { type: 'separator' },
-    {
-      label: 'Settings',
-      click: () => {
-        openDashboard();
-        // Could navigate to settings tab
-      },
-    },
-    { type: 'separator' },
-    {
-      label: 'Quit SecondBrain',
-      click: () => {
-        app.isQuitting = true;
-        app.quit();
-      },
-    },
-  ]);
-  
-  tray.setContextMenu(contextMenu);
-  
-  // Click on tray icon opens dashboard
+  // Click tray icon to open dashboard
   tray.on('click', () => {
     openDashboard();
   });
+  
+  // Right-click context menu
+  const contextMenu = Menu.buildFromTemplate([
+    { 
+      label: 'Open Dashboard', 
+      click: () => openDashboard() 
+    },
+    { 
+      label: 'Activate Overlay (⌥⇧Space)', 
+      click: () => showWindow() 
+    },
+    { type: 'separator' },
+    { 
+      label: 'Quit SecondBrain', 
+      click: () => {
+        app.isQuitting = true;
+        app.quit();
+      }
+    }
+  ]);
+  
+  tray.setContextMenu(contextMenu);
 }
 
 app.whenReady().then(() => {
-  createOverlayWindow();
+  createWindow();
   createTray();
 
-  // Register global shortcut for overlay
+  // Register shortcut - fires repeatedly while held
+  // Use Option+Shift+Space on Mac, Alt+Shift+Space on Windows/Linux
   const shortcut = "Alt+Shift+Space";
   globalShortcut.register(shortcut, () => {
     if (!isShortcutHeld) {
       isShortcutHeld = true;
-      showOverlay();
+      showWindow();
     }
   });
 
   // Poll keyboard state to detect release
   setInterval(() => {
     if (isShortcutHeld && mainWindow && mainWindow.isVisible()) {
+      // Send ping to check if keys are still held
       mainWindow.webContents.send("check-keys");
     }
   }, 100);
 
   // IPC handlers
   ipcMain.handle("hide-window", () => {
-    hideOverlay();
+    hideWindow();
   });
 
   ipcMain.handle("keys-released", () => {
@@ -245,9 +266,30 @@ app.whenReady().then(() => {
   ipcMain.handle("open-dashboard", () => {
     openDashboard();
   });
+  
+  // IPC for window controls from renderer
+  ipcMain.handle("dashboard-minimize", () => {
+    if (dashboardWindow) dashboardWindow.minimize();
+  });
+  
+  ipcMain.handle("dashboard-maximize", () => {
+    if (dashboardWindow) {
+      if (dashboardWindow.isMaximized()) {
+        dashboardWindow.unmaximize();
+      } else {
+        dashboardWindow.maximize();
+      }
+    }
+  });
+  
+  ipcMain.handle("dashboard-close", () => {
+    if (dashboardWindow) dashboardWindow.close();
+  });
 
-  // Show in Dock on macOS (don't hide)
-  // The app persists in background when windows are closed
+  // Hide dock initially (macOS) - we'll show it when dashboard opens
+  if (process.platform === "darwin") {
+    app.dock.hide();
+  }
 });
 
 app.on("will-quit", () => {
@@ -258,13 +300,16 @@ app.on("before-quit", () => {
   app.isQuitting = true;
 });
 
-// Don't quit when all windows are closed - stay in background
+// Don't quit when all windows closed - we're a menu bar app
 app.on("window-all-closed", () => {
-  // Do nothing - app stays running via tray
+  // Do nothing - app stays alive in menu bar
 });
 
 app.on("activate", () => {
-  // When clicking dock icon, open dashboard
-  openDashboard();
+  // When dock icon clicked, open dashboard
+  if (dashboardWindow && !dashboardWindow.isDestroyed()) {
+    dashboardWindow.show();
+  } else {
+    openDashboard();
+  }
 });
-
