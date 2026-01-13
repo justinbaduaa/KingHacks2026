@@ -1,4 +1,4 @@
-// BrainDump Dashboard - 3-Column Logic
+// SecondBrain Dashboard - Premium MVP
 
 // ===== Mock Data =====
 
@@ -89,34 +89,60 @@ const MOCK_ACTIVITY = [
     items: [
       { time: '05:35 PM', type: 'reminder', text: 'Created reminder: Call Mom', detail: 'Due today' },
       { time: '03:22 PM', type: 'email', text: 'Drafted email to Sarah', detail: 'Pending send' },
-      { time: '02:15 PM', type: 'note', text: 'Added note: AI Study Planner Idea', detail: 'Voice transcription' },
-      { time: '11:53 AM', type: 'calendar', text: 'Added meeting to calendar', detail: 'Design Team - Monday 2 PM' }
+      { time: '02:15 PM', type: 'note', text: 'Added note: AI Study Planner Idea', detail: 'Voice capture' },
+      { time: '11:53 AM', type: 'calendar', text: 'Added meeting to calendar', detail: 'Design Team - Monday 2 PM' },
+      { time: '09:20 AM', type: 'task', text: 'Completed task: Review PR', detail: 'Code review' }
     ]
   },
   {
     day: 'YESTERDAY',
     items: [
       { time: '04:30 PM', type: 'task', text: 'Created task: Research Competitors', detail: 'AI feature planning' },
-      { time: '10:20 AM', type: 'note', text: 'Added note: Backend Architecture', detail: 'Voice transcription' }
+      { time: '02:45 PM', type: 'note', text: 'Added note: Backend Architecture', detail: 'Voice capture' },
+      { time: '10:20 AM', type: 'reminder', text: 'Created reminder: Submit Hackathon', detail: 'Due tomorrow' }
+    ]
+  },
+  {
+    day: 'THIS WEEK',
+    items: [
+      { time: 'Mon 3:00 PM', type: 'note', text: 'Added note: Shortcut Ideas', detail: 'Voice capture' },
+      { time: 'Mon 11:30 AM', type: 'calendar', text: 'Added meeting to calendar', detail: 'Weekly standup' },
+      { time: 'Sun 8:15 PM', type: 'note', text: 'Added note: Dashboard UI Notes', detail: 'Voice capture' }
     ]
   }
 ];
 
 // ===== DOM Elements =====
-const tasksList = document.getElementById('tasks-list');
+const pendingList = document.getElementById('pending-list');
 const remindersList = document.getElementById('reminders-list');
 const notesList = document.getElementById('notes-list');
 const activityTimeline = document.getElementById('activity-timeline');
 
-const tasksCount = document.getElementById('tasks-count');
+const pendingCount = document.getElementById('pending-count');
 const remindersCount = document.getElementById('reminders-count');
 const notesCount = document.getElementById('notes-count');
+
 const loginBtn = document.getElementById('login-btn');
 const loginView = document.getElementById('login-view');
 const mainDashboard = document.getElementById('main-dashboard');
 
+// View containers
+const viewHome = document.getElementById('view-home');
+const viewHistory = document.getElementById('view-history');
+const viewSettings = document.getElementById('view-settings');
 
 // ===== Render Functions =====
+
+function getIconForType(type) {
+  switch(type) {
+    case 'email': return 'mail';
+    case 'calendar': return 'calendar';
+    case 'note': return 'file-text';
+    case 'reminder': return 'bell';
+    case 'task': return 'check-square';
+    default: return 'mic';
+  }
+}
 
 function renderCard(item) {
   const statusBadge = item.status 
@@ -124,23 +150,21 @@ function renderCard(item) {
     : '';
   
   return `
-    <div class="dash-card" data-id="${item.id}">
-      <div class="dash-card-icon ${item.type}">
-        <i data-feather="${getIconForType(item.type)}"></i>
-      </div>
-      <div class="dash-card-body">
-        <h3>${item.title}</h3>
-        <p>${item.description}</p>
-        <div class="dash-card-meta">
-          <span class="timestamp">${item.timestamp}</span>
-          ${statusBadge}
-        </div>
+    <div class="kanban-card" data-id="${item.id}" data-type="${item.type}">
+      <h3 class="card-title">${item.title}</h3>
+      <p class="card-description">${item.description}</p>
+      <span class="card-tag ${item.type}">${item.type.charAt(0).toUpperCase() + item.type.slice(1)}</span>
+      <div class="card-meta">
+        <span class="timestamp">${item.timestamp}</span>
+        ${statusBadge}
       </div>
     </div>
   `;
 }
 
 function renderCards(container, items, countEl) {
+  if (!container) return;
+  
   if (items.length === 0) {
     container.innerHTML = `
       <div class="empty-state">
@@ -154,9 +178,16 @@ function renderCards(container, items, countEl) {
   if (countEl) {
     countEl.textContent = items.length;
   }
+  
+  // Re-initialize Feather icons for new content
+  if (typeof feather !== 'undefined') {
+    feather.replace();
+  }
 }
 
 function renderActivity(container, activityData) {
+  if (!container) return;
+  
   let html = '';
   
   activityData.forEach(day => {
@@ -165,7 +196,7 @@ function renderActivity(container, activityData) {
     
     day.items.forEach(item => {
       html += `
-        <div class="activity-item">
+        <div class="activity-item" data-type="${item.type}">
           <span class="activity-time">${item.time}</span>
           <div class="activity-dot ${item.type}"></div>
           <div class="activity-content">
@@ -182,36 +213,116 @@ function renderActivity(container, activityData) {
   container.innerHTML = html;
 }
 
-// ===== Helper =====
-function getIconForType(type) {
-  switch(type) {
-    case 'email': return 'mail';
-    case 'calendar': return 'calendar';
-    case 'note': return 'file-text';
-    case 'reminder': return 'bell';
-    case 'task': return 'check-square';
-    default: return 'mic';
+// ===== View Switching =====
+function switchView(viewName) {
+  // Hide all views with fade out
+  const allViews = document.querySelectorAll('.view-container');
+  allViews.forEach(view => {
+    view.classList.remove('active');
+  });
+  
+  // Show selected view with fade in
+  const targetView = document.getElementById(`view-${viewName}`);
+  if (targetView) {
+    // Small delay for smooth transition
+    setTimeout(() => {
+      targetView.classList.add('active');
+    }, 50);
   }
+  
+  // Update nav items
+  const navItems = document.querySelectorAll('.sidebar-nav .nav-item');
+  navItems.forEach(item => {
+    if (item.dataset.view === viewName) {
+      item.classList.add('active');
+    } else {
+      item.classList.remove('active');
+    }
+  });
 }
 
 // ===== Navigation =====
 function setupNavigation() {
-  const navItems = document.querySelectorAll('.nav-item');
-  
+  // Sidebar nav - View switching
+  const navItems = document.querySelectorAll('.sidebar-nav .nav-item');
   navItems.forEach(item => {
     item.addEventListener('click', (e) => {
       e.preventDefault();
-      navItems.forEach(nav => nav.classList.remove('active'));
-      item.classList.add('active');
+      const viewName = item.dataset.view;
+      switchView(viewName);
     });
+  });
+  
+  // Top tabs
+  const tabItems = document.querySelectorAll('.tab-item');
+  tabItems.forEach(tab => {
+    tab.addEventListener('click', (e) => {
+      e.preventDefault();
+      tabItems.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+    });
+  });
+  
+  // Filter pills (History page)
+  const filterPills = document.querySelectorAll('.filter-pill');
+  filterPills.forEach(pill => {
+    pill.addEventListener('click', () => {
+      filterPills.forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      filterActivity(pill.dataset.filter);
+    });
+  });
+}
+
+function filterActivity(filterType) {
+  const activityItems = document.querySelectorAll('.activity-item');
+  activityItems.forEach(item => {
+    if (filterType === 'all' || item.dataset.type === filterType) {
+      item.style.display = 'flex';
+    } else {
+      item.style.display = 'none';
+    }
+  });
+}
+
+function setupThemeToggle() {
+  const themeBtns = document.querySelectorAll('.theme-btn');
+  themeBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      themeBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      // Theme switching logic can be added here
+    });
+  });
+}
+
+// ===== Premium Card Interactions =====
+function setupCardInteractions() {
+  // Add ripple effect on card click
+  document.addEventListener('click', (e) => {
+    const card = e.target.closest('.kanban-card');
+    if (card) {
+      // Visual feedback
+      card.style.transform = 'scale(0.98)';
+      setTimeout(() => {
+        card.style.transform = '';
+      }, 100);
+    }
+  });
+  
+  // Add keyboard navigation for cards
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      // Could close modals, etc.
+    }
   });
 }
 
 // ===== Login Flow =====
 function showDashboard() {
-  loginView.classList.add('hidden');
+  if (loginView) loginView.classList.add('hidden');
   setTimeout(() => {
-    mainDashboard.classList.add('visible');
+    if (mainDashboard) mainDashboard.classList.add('visible');
   }, 100);
 }
 
@@ -221,20 +332,66 @@ function setupWindowControls() {
   const btnMinimize = document.getElementById('btn-minimize');
   const btnMaximize = document.getElementById('btn-maximize');
   
-  if (btnClose) btnClose.addEventListener('click', () => window.braindump.dashboardClose());
-  if (btnMinimize) btnMinimize.addEventListener('click', () => window.braindump.dashboardMinimize());
-  if (btnMaximize) btnMaximize.addEventListener('click', () => window.braindump.dashboardMaximize());
+  if (btnClose && window.braindump) btnClose.addEventListener('click', () => window.braindump.dashboardClose());
+  if (btnMinimize && window.braindump) btnMinimize.addEventListener('click', () => window.braindump.dashboardMinimize());
+  if (btnMaximize && window.braindump) btnMaximize.addEventListener('click', () => window.braindump.dashboardMaximize());
+}
+
+// ===== Voice Capture Button =====
+function setupCaptureButton() {
+  const captureBtn = document.getElementById('capture-btn');
+  if (captureBtn) {
+    captureBtn.addEventListener('click', () => {
+      // Visual feedback
+      captureBtn.style.transform = 'scale(0.92)';
+      setTimeout(() => {
+        captureBtn.style.transform = '';
+      }, 150);
+      
+      console.log('Voice capture triggered');
+      if (window.braindump && window.braindump.triggerCapture) {
+        window.braindump.triggerCapture();
+      }
+    });
+  }
+}
+
+// ===== Search Box =====
+function setupSearch() {
+  const searchInput = document.querySelector('.search-box input');
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      const query = e.target.value.toLowerCase();
+      // Could implement search filtering here
+      console.log('Search:', query);
+    });
+    
+    // Keyboard shortcut to focus search
+    document.addEventListener('keydown', (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        searchInput.focus();
+      }
+    });
+  }
 }
 
 // ===== Init =====
 document.addEventListener('DOMContentLoaded', () => {
-  renderCards(tasksList, MOCK_TASKS, tasksCount);
+  // Render all columns
+  renderCards(pendingList, MOCK_TASKS, pendingCount);
   renderCards(remindersList, MOCK_REMINDERS, remindersCount);
   renderCards(notesList, MOCK_NOTES, notesCount);
+  
+  // Render activity timeline
   renderActivity(activityTimeline, MOCK_ACTIVITY);
   
   setupNavigation();
+  setupThemeToggle();
   setupWindowControls();
+  setupCaptureButton();
+  setupCardInteractions();
+  setupSearch();
   
   // Login handlers
   if (loginBtn) {
@@ -245,8 +402,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   
   // Initialize Feather Icons
-  feather.replace();
+  if (typeof feather !== 'undefined') {
+    feather.replace();
+  }
+  
+  // Default to home view
+  switchView('home');
 });
-
-
-

@@ -174,8 +174,8 @@ function openDashboard() {
 
 // Creates the menu bar tray icon
 function createTray() {
-  // Create a small brain icon for the menu bar
-  const iconPath = path.join(__dirname, "renderer", "brain.png");
+  // Create a small brain icon for the menu bar (PNG required for macOS tray)
+  const iconPath = path.join(__dirname, "renderer", "brain logo pink.png");
   let trayIcon = nativeImage.createFromPath(iconPath);
   
   // Get original size and calculate proper resize maintaining aspect ratio

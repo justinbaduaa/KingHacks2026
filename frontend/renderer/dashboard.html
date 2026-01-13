@@ -11,14 +11,6 @@
 </head>
 <body>
   
-  <!-- Ambient Background Layer -->
-  <div class="ambient-background">
-    <div class="grain-overlay"></div>
-    <div class="ambient-orb orb-1"></div>
-    <div class="ambient-orb orb-2"></div>
-    <div class="ambient-orb orb-3"></div>
-  </div>
-
   <!-- Custom Title Bar -->
   <header class="title-bar-overlay" id="title-bar">
     <div class="window-controls">
@@ -33,7 +25,7 @@
   <div class="login-view hidden" id="login-view">
     <div class="login-card">
       <div class="login-logo">
-        <img src="brain.png" alt="SecondBrain" />
+        <img src="brain logo pink.png" alt="SecondBrain" />
       </div>
       <h1>SecondBrain</h1>
       <p class="login-subtitle">Your AI-powered productivity companion</p>
@@ -53,8 +45,11 @@
     <aside class="sidebar">
       <div class="sidebar-header">
         <div class="sidebar-logo">
-          <img src="brain.png" alt="" />
-          <span>SecondBrain</span>
+          <img src="brain logo pink.png" alt="" />
+          <span class="brand-name">BRAIN<sup>2</sup></span>
+          <button class="collapse-btn" id="collapse-sidebar">
+            <i data-feather="chevrons-left"></i>
+          </button>
         </div>
       </div>
       
@@ -74,75 +69,177 @@
       </nav>
       
       <div class="sidebar-footer">
-        <div class="user-profile">
-          <div class="avatar">J</div>
-          <div class="user-info">
-            <span class="name">Justin</span>
-            <span class="plan">Pro Plan</span>
-          </div>
+        <div class="theme-toggle">
+          <button class="theme-btn" data-theme="dark">
+            <i data-feather="moon"></i>
+            <span>Dark</span>
+          </button>
+          <button class="theme-btn active" data-theme="light">
+            <i data-feather="sun"></i>
+            <span>Light</span>
+          </button>
         </div>
       </div>
     </aside>
 
     <!-- Content -->
     <main class="dashboard-content">
-      <header class="content-header">
-        <div class="header-welcome">
-          <h1>Welcome back, Justin</h1>
-          <p>Here's what SecondBrain captured for you</p>
+      <!-- Top Navigation -->
+      <div class="top-nav">
+        <div class="nav-tabs">
+          <a href="#" class="tab-item" data-tab="list">
+            <i data-feather="list"></i>
+            <span>List</span>
+          </a>
+          <a href="#" class="tab-item active" data-tab="board">
+            <i data-feather="trello"></i>
+            <span>Board</span>
+          </a>
+          <a href="#" class="tab-item" data-tab="calendar">
+            <i data-feather="calendar"></i>
+            <span>Calendar</span>
+          </a>
         </div>
-        <div class="header-stats">
-          <div class="stat-pill">🌟 2 weeks active</div>
-          <div class="stat-pill">📝 47 tasks completed</div>
-          <div class="stat-pill">🧠 128 items captured</div>
-        </div>
-      </header>
-
-      <!-- 3-Column Grid -->
-      <div class="dashboard-grid-3col">
         
-        <!-- Column 1: Outgoing Tasks -->
-        <section class="dash-column">
-          <div class="column-header">
-            <h2>Outgoing Tasks</h2>
-            <span class="badge" id="tasks-count">0</span>
+        <div class="nav-actions">
+          <div class="search-box">
+            <i data-feather="search"></i>
+            <input type="text" placeholder="Search..." />
           </div>
-          <div class="column-content" id="tasks-list">
-            <!-- Cards populated by JS -->
+          <button class="action-btn" title="Refresh">
+            <i data-feather="refresh-cw"></i>
+          </button>
+          <div class="user-avatar">
+            <img src="brain logo pink.png" alt="User" />
           </div>
-        </section>
-
-        <!-- Column 2: Reminders -->
-        <section class="dash-column">
-          <div class="column-header">
-            <h2>Reminders</h2>
-            <span class="badge" id="reminders-count">0</span>
-          </div>
-          <div class="column-content" id="reminders-list">
-            <!-- Cards populated by JS -->
-          </div>
-        </section>
-
-        <!-- Column 3: Notes -->
-        <section class="dash-column">
-          <div class="column-header">
-            <h2>Notes</h2>
-            <span class="badge" id="notes-count">0</span>
-          </div>
-          <div class="column-content" id="notes-list">
-            <!-- Cards populated by JS -->
-          </div>
-        </section>
-
+        </div>
       </div>
 
-      <!-- Activity Timeline Footer -->
-      <section class="activity-section">
-        <h2 class="section-title">Recent Activity</h2>
-        <div class="activity-timeline" id="activity-timeline">
-          <!-- Timeline populated by JS -->
+      <!-- ========== HOME VIEW ========== -->
+      <div class="view-container active" id="view-home">
+        <!-- Header -->
+        <header class="content-header">
+          <div class="header-welcome">
+            <h1>Welcome Back Justin,</h1>
+            <p class="header-subtitle">Here's what SecondBrain captured for you</p>
+          </div>
+          <div class="header-stats">
+            <div class="stat-pill">🌟 2 weeks active</div>
+            <div class="stat-pill">📝 47 tasks completed</div>
+            <div class="stat-pill">🧠 128 items captured</div>
+          </div>
+        </header>
+
+        <!-- 3-Column Kanban Board - No Scroll, All Expanded -->
+        <div class="kanban-board">
+          
+          <!-- Column 1: Outgoing Tasks -->
+          <section class="kanban-column">
+            <div class="column-header">
+              <div class="column-title">
+                <h2>OUTGOING TASKS</h2>
+                <span class="count-badge" id="pending-count">0</span>
+              </div>
+              <button class="column-menu"><i data-feather="more-horizontal"></i></button>
+            </div>
+            <div class="column-content" id="pending-list">
+              <!-- Cards populated by JS -->
+            </div>
+          </section>
+
+          <!-- Column 2: Reminders -->
+          <section class="kanban-column">
+            <div class="column-header">
+              <div class="column-title">
+                <h2>REMINDERS</h2>
+                <span class="count-badge reminder-badge" id="reminders-count">0</span>
+              </div>
+              <button class="column-menu"><i data-feather="more-horizontal"></i></button>
+            </div>
+            <div class="column-content" id="reminders-list">
+              <!-- Cards populated by JS -->
+            </div>
+          </section>
+
+          <!-- Column 3: Notes -->
+          <section class="kanban-column">
+            <div class="column-header">
+              <div class="column-title">
+                <h2>NOTES</h2>
+                <span class="count-badge notes-badge" id="notes-count">0</span>
+              </div>
+              <button class="column-menu"><i data-feather="more-horizontal"></i></button>
+            </div>
+            <div class="column-content" id="notes-list">
+              <!-- Cards populated by JS -->
+            </div>
+          </section>
+
         </div>
-      </section>
+      </div>
+
+      <!-- ========== HISTORY VIEW ========== -->
+      <div class="view-container" id="view-history">
+        <header class="content-header">
+          <div class="header-welcome">
+            <h1>Activity History</h1>
+            <p class="header-subtitle">Everything SecondBrain has captured</p>
+          </div>
+          <div class="header-actions-row">
+            <div class="filter-pills">
+              <button class="filter-pill active" data-filter="all">All</button>
+              <button class="filter-pill" data-filter="task">Tasks</button>
+              <button class="filter-pill" data-filter="reminder">Reminders</button>
+              <button class="filter-pill" data-filter="note">Notes</button>
+              <button class="filter-pill" data-filter="email">Emails</button>
+            </div>
+          </div>
+        </header>
+
+        <div class="history-content">
+          <div class="activity-timeline" id="activity-timeline">
+            <!-- Timeline populated by JS -->
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== SETTINGS VIEW ========== -->
+      <div class="view-container" id="view-settings">
+        <header class="content-header">
+          <div class="header-welcome">
+            <h1>Settings</h1>
+            <p class="header-subtitle">Customize your SecondBrain experience</p>
+          </div>
+        </header>
+
+        <div class="settings-content">
+          <div class="settings-section">
+            <h3>General</h3>
+            <div class="settings-item">
+              <div class="settings-label">
+                <span>Global Shortcut</span>
+                <span class="settings-desc">Trigger voice capture</span>
+              </div>
+              <div class="shortcut-badge">⌥⇧Space</div>
+            </div>
+            <div class="settings-item">
+              <div class="settings-label">
+                <span>Launch at Login</span>
+                <span class="settings-desc">Start SecondBrain when you log in</span>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Voice Capture Button -->
+      <button class="capture-btn" id="capture-btn" title="Press Option+Shift+Space to capture">
+        <i data-feather="mic"></i>
+      </button>
 
     </main>
   </div>
@@ -151,5 +248,6 @@
   <script>
     feather.replace();
   </script>
+
 </body>
 </html>
