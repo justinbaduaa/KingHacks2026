@@ -224,4 +224,5 @@ async function loginInteractive() {
 module.exports = {
   ensureValidTokens,
   loginInteractive,
+  loadConfig,
 };

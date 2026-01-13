@@ -7,9 +7,11 @@ const {
 } = require("electron");
 const path = require("path");
 const { ensureValidTokens, loginInteractive } = require("./auth");
+const { createTranscribeSession } = require("./transcribe");
 
 let mainWindow = null;
 let isShortcutHeld = false;
+const transcribeSession = createTranscribeSession();
 
 // creates the overlay window with some special settings, like transparent and always on top, no taskbar
 function createWindow() { 
@@ -172,6 +174,21 @@ app.whenReady().then(() => {
   ipcMain.handle("auth-login", async () => {
     const tokens = await loginInteractive();
     return { authenticated: Boolean(tokens) };
+  });
+
+  ipcMain.handle("transcribe-start", async () => {
+    await transcribeSession.start();
+    return { started: true };
+  });
+
+  ipcMain.handle("transcribe-stop", async () => {
+    transcribeSession.stop();
+    return { stopped: true };
+  });
+
+  ipcMain.on("transcribe-audio", (event, chunk) => {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    transcribeSession.enqueue(buffer);
   });
 
 

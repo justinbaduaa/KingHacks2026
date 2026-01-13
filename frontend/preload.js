@@ -10,4 +10,7 @@ contextBridge.exposeInMainWorld('braindump', {
   onWindowHidden: (callback) => ipcRenderer.on('window-hidden', callback),
   authStatus: () => ipcRenderer.invoke('auth-status'),
   authLogin: () => ipcRenderer.invoke('auth-login'),
+  startTranscription: () => ipcRenderer.invoke('transcribe-start'),
+  stopTranscription: () => ipcRenderer.invoke('transcribe-stop'),
+  sendAudioChunk: (chunk) => ipcRenderer.send('transcribe-audio', chunk),
 });
