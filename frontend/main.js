@@ -7,6 +7,7 @@ const {
 } = require("electron");
 const path = require("path");
 const { OAuthServer, exchangeCodeForTokens, decodeJWT } = require("./oauth-server");
+const appleReminders = require("./apple-reminders");
 
 let mainWindow = null;
 let isShortcutHeld = false;
@@ -402,6 +403,60 @@ app.whenReady().then(() => {
       console.error("Calendar local execution error:", error);
       return { success: false, error: error.message };
     }
+  });
+
+  // ============================================
+  // Apple Reminders (macOS only)
+  // ============================================
+
+  // Check if Apple Reminders is available
+  ipcMain.handle("apple-reminders-available", async () => {
+    return appleReminders.isAvailable();
+  });
+
+  // Create a reminder in Apple Reminders app
+  ipcMain.handle("execute-apple-reminder", async (event, { action }) => {
+    if (!appleReminders.isAvailable()) {
+      return { success: false, error: "Apple Reminders is only available on macOS" };
+    }
+
+    try {
+      const { title, due_date, notes, list } = action;
+
+      // Parse due date if provided
+      let dueDate = null;
+      if (due_date) {
+        dueDate = new Date(due_date);
+        if (isNaN(dueDate.getTime())) {
+          dueDate = null;
+        }
+      }
+
+      const result = await appleReminders.createReminder(title, {
+        dueDate,
+        notes,
+        listName: list || null, // null = use system default list
+      });
+
+      if (result.success) {
+        console.log("[Apple Reminders] Reminder created:", title);
+      } else {
+        console.warn("[Apple Reminders] Failed:", result.error);
+      }
+
+      return result;
+    } catch (error) {
+      console.error("Apple Reminder error:", error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Get available reminder lists
+  ipcMain.handle("apple-reminders-lists", async () => {
+    if (!appleReminders.isAvailable()) {
+      return { success: false, error: "Apple Reminders is only available on macOS" };
+    }
+    return appleReminders.getLists();
   });
 
   if (process.platform === "darwin") {

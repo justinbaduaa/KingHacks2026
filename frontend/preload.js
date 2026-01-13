@@ -31,4 +31,9 @@ contextBridge.exposeInMainWorld('braindump', {
   // Local Google API execution (for testing without backend)
   executeGmailLocal: (data) => ipcRenderer.invoke('execute-gmail-local', data),
   executeCalendarLocal: (data) => ipcRenderer.invoke('execute-calendar-local', data),
+
+  // Apple Reminders (macOS only)
+  isAppleRemindersAvailable: () => ipcRenderer.invoke('apple-reminders-available'),
+  executeAppleReminder: (data) => ipcRenderer.invoke('execute-apple-reminder', data),
+  getAppleRemindersLists: () => ipcRenderer.invoke('apple-reminders-lists'),
 });

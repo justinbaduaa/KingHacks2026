@@ -32,25 +32,37 @@ let currentTasks = [];
 // Mock Data for Stacked UI (fallback when not connected to backend)
 // Each task should have: type, text, and actionData for execution
 const MOCK_TASKS = [
+  // Test 1: Apple Reminders (no email fields = routes to Reminders app)
   {
     type: 'Reminder',
-    text: "Email Sarah tomorrow about the project update",
+    text: "Remind me to buy groceries tomorrow",
+    actionData: {
+      due_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      content: "Buy groceries: milk, eggs, bread"
+    }
+  },
+  // Test 2: Gmail Email (has to/subject = routes to Gmail)
+  {
+    type: 'Email',
+    text: "Email Sarah about the project update",
     actionData: {
       to: "sarah@example.com",
       subject: "Project Update",
-      body: "Hi Sarah,\n\nJust a reminder about the project update.\n\nBest regards"
+      body: "Hi Sarah,\n\nJust following up on the project update.\n\nBest regards"
     }
   },
+  // Test 3: Google Calendar
   {
     type: 'Calendar',
-    text: "Meeting with Design Team at 2:00 PM",
+    text: "Meeting with Design Team at 2:00 PM tomorrow",
     actionData: {
       title: "Meeting with Design Team",
-      start_time: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // Tomorrow
+      start_time: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
       description: "Weekly design sync",
       attendees: []
     }
   },
+  // Test 4: Local Todo (stored in backend/locally)
   {
     type: 'Todo',
     text: "Research competitors for new feature",
@@ -324,10 +336,10 @@ function getIconForType(type) {
   }
 }
 
-// Helper: Check if a task type supports draft mode (email/reminder types)
+// Helper: Check if a task type supports draft mode (email types only)
 function supportsDraftMode(type) {
   const lowerType = type.toLowerCase();
-  return ['email', 'reminder', 'gmail'].includes(lowerType);
+  return ['email', 'gmail'].includes(lowerType);
 }
 
 // Helper: Render cards from tasks array
@@ -499,6 +511,56 @@ function createParticleBurst(x, y, type = 'poof', count = 12) {
   setTimeout(() => container.remove(), 1000);
 }
 
+// ============================================
+// Apple Reminders Smart Routing
+// ============================================
+
+/**
+ * Determine if a reminder should go to Apple Reminders or Gmail
+ * @param {Object} task - The task object
+ * @returns {'apple' | 'gmail'} - Destination
+ */
+function determineReminderDestination(task) {
+  const text = (task.text || '').toLowerCase();
+  const actionData = task.actionData || {};
+
+  // If actionData has email-specific fields (to, subject), it's an email
+  if (actionData.to || actionData.subject) {
+    return 'gmail';
+  }
+
+  // Check for email keywords in the text
+  const emailKeywords = ['email', 'send email', 'send an email', 'mail to', 'mail me', 'send a mail'];
+  if (emailKeywords.some(kw => text.includes(kw))) {
+    return 'gmail';
+  }
+
+  // Default to Apple Reminders for actual reminder tasks on macOS
+  return 'apple';
+}
+
+/**
+ * Execute a reminder via Apple Reminders app
+ * @param {Object} task - The task object
+ * @returns {Promise<{success: boolean, error?: string}>}
+ */
+async function executeAppleReminder(task) {
+  try {
+    const result = await window.braindump.executeAppleReminder({
+      action: {
+        title: task.text,
+        due_date: task.actionData?.due_date || task.actionData?.start_time || null,
+        notes: task.actionData?.body || task.actionData?.content || null,
+        list: task.actionData?.list || null, // null = use system default list
+      }
+    });
+    return result;
+  } catch (error) {
+    console.error('[Apple Reminders] Error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
 // Create ghost trail effect for smooth slide
 function createGhostTrail(card) {
   const rect = card.getBoundingClientRect();
@@ -536,10 +598,37 @@ async function approveCard(card, index, executionMode = 'execute') {
     : `<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>`;
   card.appendChild(checkmark);
 
-  // Execute the action on the backend (non-blocking for UI)
-  // Only execute for Google-connected action types (email, calendar)
+  // Execute the action (non-blocking for UI)
   const taskType = task.type.toLowerCase();
-  if (googleConnected && ['email', 'reminder', 'gmail', 'calendar', 'meeting', 'event'].includes(taskType)) {
+
+  // Handle reminder type with smart routing (Apple Reminders vs Gmail)
+  if (taskType === 'reminder') {
+    (async () => {
+      const appleAvailable = await window.braindump.isAppleRemindersAvailable();
+      const destination = appleAvailable ? determineReminderDestination(task) : 'gmail';
+
+      if (destination === 'apple') {
+        console.log('[Action] Routing reminder to Apple Reminders');
+        const result = await executeAppleReminder(task);
+        if (!result.success) {
+          console.warn('[Apple Reminders] Failed:', result.error);
+          // Fallback to Gmail/backend if Apple Reminders fails
+          if (googleConnected) {
+            executeActionOnBackend(task, executionMode);
+          }
+        } else {
+          console.log('[Apple Reminders] Reminder created successfully');
+        }
+      } else {
+        // Route to Gmail
+        console.log('[Action] Routing reminder to Gmail');
+        if (googleConnected) {
+          executeActionOnBackend(task, executionMode);
+        }
+      }
+    })();
+  } else if (googleConnected && ['email', 'gmail', 'calendar', 'meeting', 'event'].includes(taskType)) {
+    // Google-connected action types (email, calendar)
     executeActionOnBackend(task, executionMode).then(result => {
       if (!result.success) {
         console.warn('[Action] Backend execution failed, but card already approved');
