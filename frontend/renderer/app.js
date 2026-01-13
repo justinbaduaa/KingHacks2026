@@ -22,12 +22,244 @@ const expiredMessage = document.getElementById('expired-message');
 // Timer state
 let timerPermanentlyPaused = false;
 
-// Mock Data for Stacked UI
+// Google connection state
+let googleConnected = false;
+let cognitoToken = null; // TODO: Implement Cognito auth flow to get this token
+
+// Current tasks being displayed (replaces direct MOCK_TASKS reference)
+let currentTasks = [];
+
+// Mock Data for Stacked UI (fallback when not connected to backend)
+// Each task should have: type, text, and actionData for execution
 const MOCK_TASKS = [
-  { type: 'Reminder', text: "Email Sarah tomorrow about the project update" },
-  { type: 'Calendar', text: "Meeting with Design Team at 2:00 PM" },
-  { type: 'Todo', text: "Research competitors for new feature" }
+  {
+    type: 'Reminder',
+    text: "Email Sarah tomorrow about the project update",
+    actionData: {
+      to: "sarah@example.com",
+      subject: "Project Update",
+      body: "Hi Sarah,\n\nJust a reminder about the project update.\n\nBest regards"
+    }
+  },
+  {
+    type: 'Calendar',
+    text: "Meeting with Design Team at 2:00 PM",
+    actionData: {
+      title: "Meeting with Design Team",
+      start_time: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // Tomorrow
+      description: "Weekly design sync",
+      attendees: []
+    }
+  },
+  {
+    type: 'Todo',
+    text: "Research competitors for new feature",
+    actionData: {
+      content: "Research competitors for new feature"
+    }
+  }
 ];
+
+// ============================================
+// Google OAuth Functions
+// ============================================
+
+// Check Google connection status on app load
+async function checkGoogleStatus() {
+  if (!cognitoToken) {
+    console.log('[Google] No auth token available');
+    return false;
+  }
+
+  try {
+    const status = await window.braindump.googleStatus(cognitoToken);
+    googleConnected = status.connected === true;
+    updateGoogleStatusUI();
+    return googleConnected;
+  } catch (error) {
+    console.error('[Google] Status check failed:', error);
+    return false;
+  }
+}
+
+// Connect Google account via OAuth
+async function connectGoogle() {
+  console.log('[Google] Starting OAuth flow...');
+
+  try {
+    const result = await window.braindump.googleConnect();
+
+    if (result.success && result.tokens) {
+      console.log('[Google] OAuth successful!');
+      console.log('[Google] Access token received:', result.tokens.access_token ? 'Yes' : 'No');
+      console.log('[Google] Refresh token received:', result.tokens.refresh_token ? 'Yes' : 'No');
+
+      // Store tokens locally for now (backend integration later)
+      localStorage.setItem('google_access_token', result.tokens.access_token);
+      if (result.tokens.refresh_token) {
+        localStorage.setItem('google_refresh_token', result.tokens.refresh_token);
+      }
+      localStorage.setItem('google_connected', 'true');
+
+      // Try to store in backend if available (non-blocking)
+      if (cognitoToken) {
+        window.braindump.storeGoogleToken({
+          cognitoToken: cognitoToken,
+          refreshToken: result.tokens.refresh_token,
+          providerUserId: result.providerUserId,
+          scope: result.tokens.scope,
+        }).catch(err => console.warn('[Google] Backend storage failed (OK for local testing):', err));
+      }
+
+      googleConnected = true;
+      updateGoogleStatusUI();
+      console.log('[Google] Connected successfully!');
+    } else {
+      console.error('[Google] OAuth failed:', result.error);
+    }
+  } catch (error) {
+    console.error('[Google] Connection error:', error);
+  }
+}
+
+// Disconnect Google account
+async function disconnectGoogle() {
+  // Clear local storage
+  localStorage.removeItem('google_access_token');
+  localStorage.removeItem('google_refresh_token');
+  localStorage.removeItem('google_connected');
+
+  // Try to disconnect from backend if authenticated
+  if (cognitoToken) {
+    try {
+      await window.braindump.googleDisconnect(cognitoToken);
+    } catch (error) {
+      console.warn('[Google] Backend disconnect failed (OK for local testing):', error);
+    }
+  }
+
+  googleConnected = false;
+  updateGoogleStatusUI();
+  console.log('[Google] Disconnected successfully');
+}
+
+// Update the Google connection status UI
+function updateGoogleStatusUI() {
+  const btn = document.getElementById('google-connect-btn');
+  const text = document.getElementById('google-connect-text');
+
+  if (!btn || !text) return;
+
+  if (googleConnected) {
+    btn.classList.add('connected');
+    text.textContent = 'Google Connected';
+  } else {
+    btn.classList.remove('connected');
+    text.textContent = 'Connect Google';
+  }
+}
+
+// ============================================
+// Action Execution
+// ============================================
+
+// Execute an action locally using Google APIs (for testing without backend)
+async function executeActionLocally(task, executionMode = 'execute') {
+  const accessToken = localStorage.getItem('google_access_token');
+  if (!accessToken) {
+    console.warn('[Action] No Google access token available');
+    return { success: false, error: 'Google not connected' };
+  }
+
+  const taskType = task.type.toLowerCase();
+  console.log(`[Action] Executing locally: ${taskType} (${executionMode})`);
+
+  try {
+    // Gmail actions (email, reminder)
+    if (['email', 'reminder', 'gmail'].includes(taskType)) {
+      const result = await window.braindump.executeGmailLocal({
+        accessToken,
+        action: {
+          to: task.actionData.to || 'me@example.com',
+          subject: task.actionData.subject || task.text,
+          body: task.actionData.body || task.text,
+          executionMode,
+        },
+      });
+      return result;
+    }
+
+    // Calendar actions (calendar, meeting, event)
+    if (['calendar', 'meeting', 'event'].includes(taskType)) {
+      const result = await window.braindump.executeCalendarLocal({
+        accessToken,
+        action: {
+          title: task.actionData.title || task.text,
+          start_time: task.actionData.start_time || new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+          end_time: task.actionData.end_time,
+          description: task.actionData.description || '',
+          attendees: task.actionData.attendees || [],
+        },
+      });
+      return result;
+    }
+
+    // Other types (todo, note) - just log locally for now
+    console.log(`[Action] Local action type '${taskType}' stored locally`);
+    return { success: true, local: true };
+  } catch (error) {
+    console.error('[Action] Local execution error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Execute an action via the backend (or locally if no backend)
+async function executeActionOnBackend(task, executionMode = 'execute') {
+  const taskType = task.type.toLowerCase();
+
+  // If Google is connected locally but no backend auth, use local execution
+  if (googleConnected && !cognitoToken) {
+    if (['email', 'reminder', 'gmail', 'calendar', 'meeting', 'event'].includes(taskType)) {
+      return executeActionLocally(task, executionMode);
+    }
+    // For non-Google actions without backend, just succeed locally
+    console.log(`[Action] No backend - '${taskType}' action logged locally`);
+    return { success: true, local: true };
+  }
+
+  // No auth at all
+  if (!cognitoToken) {
+    console.warn('[Action] No auth token - action will not be sent to backend');
+    return { success: false, error: 'Not authenticated' };
+  }
+
+  // Use backend
+  const actionPayload = {
+    type: taskType,
+    execution_mode: executionMode,
+    ...task.actionData,
+  };
+
+  console.log('[Action] Executing via backend:', actionPayload);
+
+  try {
+    const result = await window.braindump.executeAction({
+      cognitoToken: cognitoToken,
+      action: actionPayload,
+    });
+
+    if (result.success) {
+      console.log('[Action] Success:', result);
+    } else {
+      console.error('[Action] Failed:', result.error);
+    }
+
+    return result;
+  } catch (error) {
+    console.error('[Action] Error:', error);
+    return { success: false, error: error.message };
+  }
+}
 
 // Helper: Get icon SVG based on card type
 function getIconForType(type) {
@@ -92,29 +324,37 @@ function getIconForType(type) {
   }
 }
 
-// Helper: Render mock cards
+// Helper: Check if a task type supports draft mode (email/reminder types)
+function supportsDraftMode(type) {
+  const lowerType = type.toLowerCase();
+  return ['email', 'reminder', 'gmail'].includes(lowerType);
+}
+
+// Helper: Render cards from tasks array
 function renderCards(tasks) {
+  // Store tasks for reference in approve/dismiss handlers
+  currentTasks = tasks;
+
   // Reset timer state for fresh card set
   timerPermanentlyPaused = false;
   cardsStack.classList.remove('timer-paused');
   expiredMessage.classList.remove('visible');
-  
+
   // Clear existing cards (keep loading bar)
   const existingCards = cardsStack.querySelectorAll('.action-card');
   existingCards.forEach(card => card.remove());
-  
-  // Create and append new cards (reverse order so first item is on top in DOM)
-  // Actually, standard stacking context means last in DOM is on top,
-  // BUT we want visual order 1st item = top.
-  // CSS :nth-child(1) is top card.
-  // So we just append them in order.
-  
+
+  // Create and append new cards
   tasks.forEach((task, index) => {
     const card = document.createElement('div');
     card.className = 'action-card';
     card.dataset.index = index;
     card.dataset.type = task.type.toLowerCase();
     if (index === tasks.length - 1) card.classList.add('last-card');
+
+    // Check if this task type supports draft mode
+    const hasDraftOption = supportsDraftMode(task.type);
+
     card.innerHTML = `
       <div class="action-icon" data-type="${task.type.toLowerCase()}">
         ${getIconForType(task.type)}
@@ -124,7 +364,15 @@ function renderCards(tasks) {
         <div class="action-text">${task.text}</div>
       </div>
       <div class="action-buttons">
-        <button class="btn-approve" title="Approve">
+        ${hasDraftOption ? `
+          <button class="btn-draft" title="Save as Draft">
+            <svg viewBox="0 0 24 24">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+            </svg>
+          </button>
+        ` : ''}
+        <button class="btn-approve" title="${hasDraftOption ? 'Send Now' : 'Approve'}">
           <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
         </button>
         <button class="btn-dismiss" title="Dismiss">
@@ -132,23 +380,32 @@ function renderCards(tasks) {
         </button>
       </div>
     `;
-    
-    // Approve button handler
+
+    // Draft button handler (if exists)
+    const draftBtn = card.querySelector('.btn-draft');
+    if (draftBtn) {
+      draftBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        approveCard(card, index, 'draft');
+      });
+    }
+
+    // Approve button handler (execute mode)
     card.querySelector('.btn-approve').addEventListener('click', (e) => {
       e.stopPropagation();
-      approveCard(card, index);
+      approveCard(card, index, 'execute');
     });
-    
+
     // Dismiss button handler
     card.querySelector('.btn-dismiss').addEventListener('click', (e) => {
       e.stopPropagation();
       dismissCard(card, index);
     });
-    
+
     // Insert before loading bar
     cardsStack.insertBefore(card, loadingBar);
   });
-  
+
   // Auto-select first card for keyboard navigation
   const firstCard = cardsStack.querySelector('.action-card');
   if (firstCard) {
@@ -256,33 +513,53 @@ function createGhostTrail(card) {
   setTimeout(() => ghost.remove(), 500);
 }
 
-// Approve a card (hardcoded action)
-function approveCard(card, index) {
+// Approve a card with optional execution mode
+async function approveCard(card, index, executionMode = 'execute') {
   if (!card || card.classList.contains('approved')) return;
-  
-  console.log(`[APPROVED] Task ${index}: ${MOCK_TASKS[index].text}`);
-  
+
+  const task = currentTasks[index];
+  const modeLabel = executionMode === 'draft' ? 'DRAFT' : 'APPROVED';
+  console.log(`[${modeLabel}] Task ${index}: ${task.text}`);
+
   // Check if this is the last remaining card
   const remainingCards = cardsStack.querySelectorAll('.action-card:not(.approved):not(.dismissed)');
   const isLastCard = remainingCards.length === 1;
-  
-  // Add approved state
+
+  // Add approved state immediately for visual feedback
   card.classList.add('approved');
-  
+
   // Create and inject the checkmark element
   const checkmark = document.createElement('div');
   checkmark.className = 'approve-checkmark';
-  checkmark.innerHTML = `<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>`;
+  checkmark.innerHTML = executionMode === 'draft'
+    ? `<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`
+    : `<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>`;
   card.appendChild(checkmark);
-  
+
+  // Execute the action on the backend (non-blocking for UI)
+  // Only execute for Google-connected action types (email, calendar)
+  const taskType = task.type.toLowerCase();
+  if (googleConnected && ['email', 'reminder', 'gmail', 'calendar', 'meeting', 'event'].includes(taskType)) {
+    executeActionOnBackend(task, executionMode).then(result => {
+      if (!result.success) {
+        console.warn('[Action] Backend execution failed, but card already approved');
+      }
+    });
+  } else if (['todo', 'task', 'note'].includes(taskType)) {
+    // Local actions - store in backend if authenticated
+    if (cognitoToken) {
+      executeActionOnBackend(task, executionMode);
+    }
+  }
+
   // Trigger the collapse animation after checkmark pops
   setTimeout(() => {
     card.classList.add('animate-send');
-    
+
     // Remove after collapse completes
     setTimeout(() => {
       card.remove();
-      
+
       // If this was the last card, transition to completing state then hide
       if (isLastCard) {
         setState(State.COMPLETING);
@@ -292,7 +569,7 @@ function approveCard(card, index) {
       }
     }, 400);
   }, 150);
-  
+
   // Select next card immediately (if not the last one)
   if (!isLastCard) {
     selectNextCard();
@@ -302,8 +579,9 @@ function approveCard(card, index) {
 // Dismiss a card
 function dismissCard(card, index) {
   if (!card || card.classList.contains('dismissed')) return;
-  
-  console.log(`[DISMISSED] Task ${index}: ${MOCK_TASKS[index].text}`);
+
+  const task = currentTasks[index];
+  console.log(`[DISMISSED] Task ${index}: ${task.text}`);
   
   // Check if this is the last remaining card
   const remainingCards = cardsStack.querySelectorAll('.action-card:not(.approved):not(.dismissed)');
@@ -363,11 +641,20 @@ cardsStack.addEventListener('dblclick', (e) => {
     const newText = input.value.trim() || originalText;
     textEl.textContent = newText;
     card.classList.remove('editing');
-    
-    // Update mock data
+
+    // Update current tasks data
     const index = parseInt(card.dataset.index);
-    if (!isNaN(index)) {
-      MOCK_TASKS[index].text = newText;
+    if (!isNaN(index) && currentTasks[index]) {
+      currentTasks[index].text = newText;
+      // Also update actionData content if it exists
+      if (currentTasks[index].actionData) {
+        if (currentTasks[index].actionData.content !== undefined) {
+          currentTasks[index].actionData.content = newText;
+        }
+        if (currentTasks[index].actionData.body !== undefined) {
+          currentTasks[index].actionData.body = newText;
+        }
+      }
       console.log(`[EDITED] Task ${index}: ${newText}`);
     }
   };
@@ -431,12 +718,12 @@ document.addEventListener('keydown', (e) => {
     }
   }
   
-  // Enter to approve selected card
+  // Enter to approve selected card (execute mode)
   if (e.key === 'Enter' && selectedCard) {
     e.preventDefault();
     const index = parseInt(selectedCard.dataset.index);
     if (!isNaN(index)) {
-      approveCard(selectedCard, index);
+      approveCard(selectedCard, index, 'execute');
     }
   }
   
@@ -617,12 +904,57 @@ async function processAndShowAction() {
   // Brief processing moment
   setState(State.PROCESSING);
   await sleep(300);
-  
+
+  // TODO: In production, fetch real tasks from backend after voice processing
+  // For now, use mock tasks as fallback
+  // const tasks = await fetchTasksFromBackend();
+  const tasks = MOCK_TASKS;
+
+  if (tasks.length === 0) {
+    // No tasks to show - hide window
+    window.braindump.hideWindow();
+    return;
+  }
+
   // Generate and render cards before showing
-  renderCards(MOCK_TASKS);
-  
+  renderCards(tasks);
+
   // Show the card stack
   setState(State.CONFIRMED);
+}
+
+// Initialize Google status check on app load (when authenticated)
+function initializeApp() {
+  // Check local storage for Google connection (for local testing)
+  if (localStorage.getItem('google_connected') === 'true') {
+    googleConnected = true;
+    updateGoogleStatusUI();
+    console.log('[Google] Restored connection from local storage');
+  }
+
+  // Check Google connection status from backend if we have a Cognito token
+  if (cognitoToken) {
+    checkGoogleStatus();
+  }
+
+  // Set up Google connect button click handler
+  const googleBtn = document.getElementById('google-connect-btn');
+  if (googleBtn) {
+    googleBtn.addEventListener('click', () => {
+      if (googleConnected) {
+        disconnectGoogle();
+      } else {
+        connectGoogle();
+      }
+    });
+  }
+}
+
+// Call initialize when DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initializeApp);
+} else {
+  initializeApp();
 }
 
 // Track if modifier keys are still held
