@@ -22,6 +22,16 @@ const expiredMessage = document.getElementById('expired-message');
 // Timer state
 let timerPermanentlyPaused = false;
 
+async function ensureAuthenticated() {
+  if (!window.braindump?.authStatus || !window.braindump?.authLogin) {
+    return;
+  }
+  const status = await window.braindump.authStatus();
+  if (!status?.authenticated) {
+    await window.braindump.authLogin();
+  }
+}
+
 // Mock Data for Stacked UI
 const MOCK_TASKS = [
   { type: 'Reminder', text: "Email Sarah tomorrow about the project update" },
@@ -671,4 +681,8 @@ document.addEventListener('keydown', (e) => {
     keysHeld = false;
     window.braindump.hideWindow();
   }
+});
+
+ensureAuthenticated().catch((err) => {
+  console.warn('Auth flow failed to start:', err);
 });

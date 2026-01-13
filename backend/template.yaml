@@ -7,15 +7,6 @@ Parameters:
     Type: String
     Default: kinghacks2026
     Description: Cognito hosted UI domain prefix (must be globally unique)
-  GoogleClientId:
-    Type: String
-    Default: ""
-    Description: Google OAuth client ID
-  GoogleClientSecret:
-    Type: String
-    NoEcho: true
-    Default: ""
-    Description: Google OAuth client secret
   GoogleDesktopClientId:
     Type: String
     Default: "889539163514-10nft2cs9sg6r66ssrusa649qm82kajr.apps.googleusercontent.com"
@@ -87,7 +78,7 @@ Resources:
         - email
       AutoVerifiedAttributes:
         - email
-      MfaConfiguration: OFF
+      MfaConfiguration: "OFF"
       Policies:
         PasswordPolicy:
           MinimumLength: 8
@@ -101,22 +92,6 @@ Resources:
     Properties:
       Domain: !Ref CognitoDomainPrefix
       UserPoolId: !Ref CognitoUserPool
-
-  CognitoUserPoolGoogleIdP:
-    Type: AWS::Cognito::UserPoolIdentityProvider
-    Properties:
-      ProviderName: Google
-      ProviderType: Google
-      UserPoolId: !Ref CognitoUserPool
-      AttributeMapping:
-        email: email
-        given_name: given_name
-        family_name: family_name
-        name: name
-      ProviderDetails:
-        client_id: !Ref GoogleClientId
-        client_secret: !Ref GoogleClientSecret
-        authorize_scopes: "openid email profile"
 
   CognitoUserPoolClient:
     Type: AWS::Cognito::UserPoolClient
@@ -133,11 +108,10 @@ Resources:
         - profile
       SupportedIdentityProviders:
         - COGNITO
-        - Google
       CallbackURLs:
-        - http://localhost:3000/callback
+        - http://127.0.0.1:4387/callback
       LogoutURLs:
-        - http://localhost:3000/
+        - http://127.0.0.1:4387/logout
 
   CognitoIdentityPool:
     Type: AWS::Cognito::IdentityPool
@@ -282,6 +256,19 @@ Resources:
           Properties:
             RestApiId: !Ref BackendApi
             Path: /integrations/google/gmail/labels
+            Method: GET
+
+  WhoAmIFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handlers.whoami.handler
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BackendApi
+            Path: /whoami
             Method: GET
 
 Outputs:

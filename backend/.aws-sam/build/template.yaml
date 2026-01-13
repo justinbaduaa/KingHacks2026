@@ -6,15 +6,6 @@ Parameters:
     Type: String
     Default: kinghacks2026
     Description: Cognito hosted UI domain prefix (must be globally unique)
-  GoogleClientId:
-    Type: String
-    Default: ''
-    Description: Google OAuth client ID
-  GoogleClientSecret:
-    Type: String
-    NoEcho: true
-    Default: ''
-    Description: Google OAuth client secret
   GoogleDesktopClientId:
     Type: String
     Default: 889539163514-10nft2cs9sg6r66ssrusa649qm82kajr.apps.googleusercontent.com
@@ -22,7 +13,7 @@ Parameters:
 Globals:
   Function:
     Timeout: 30
-    Runtime: python3.11
+    Runtime: python3.13
     MemorySize: 256
     Environment:
       Variables:
@@ -90,7 +81,7 @@ Resources:
       - email
       AutoVerifiedAttributes:
       - email
-      MfaConfiguration: false
+      MfaConfiguration: 'OFF'
       Policies:
         PasswordPolicy:
           MinimumLength: 8
@@ -105,24 +96,6 @@ Resources:
         Ref: CognitoDomainPrefix
       UserPoolId:
         Ref: CognitoUserPool
-  CognitoUserPoolGoogleIdP:
-    Type: AWS::Cognito::UserPoolIdentityProvider
-    Properties:
-      ProviderName: Google
-      ProviderType: Google
-      UserPoolId:
-        Ref: CognitoUserPool
-      AttributeMapping:
-        email: email
-        given_name: given_name
-        family_name: family_name
-        name: name
-      ProviderDetails:
-        client_id:
-          Ref: GoogleClientId
-        client_secret:
-          Ref: GoogleClientSecret
-        authorize_scopes: openid email profile
   CognitoUserPoolClient:
     Type: AWS::Cognito::UserPoolClient
     Properties:
@@ -140,11 +113,10 @@ Resources:
       - profile
       SupportedIdentityProviders:
       - COGNITO
-      - Google
       CallbackURLs:
-      - http://localhost:3000/callback
+      - http://127.0.0.1:4387/callback
       LogoutURLs:
-      - http://localhost:3000/
+      - http://127.0.0.1:4387/logout
   CognitoIdentityPool:
     Type: AWS::Cognito::IdentityPool
     Properties:
@@ -176,6 +148,16 @@ Resources:
                 Ref: CognitoIdentityPool
             ForAnyValue:StringLike:
               cognito-identity.amazonaws.com:amr: authenticated
+      Policies:
+      - PolicyName: TranscribeStreamingAccess
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - transcribe:StartStreamTranscription
+            - transcribe:StartStreamTranscriptionWebSocket
+            Resource: '*'
   CognitoIdentityPoolUnauthenticatedRole:
     Type: AWS::IAM::Role
     Properties:
@@ -306,6 +288,21 @@ Resources:
             Method: GET
     Metadata:
       SamResourceId: GoogleGmailLabelsFunction
+  WhoAmIFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: WhoAmIFunction
+      Handler: handlers.whoami.handler
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: BackendApi
+            Path: /whoami
+            Method: GET
+    Metadata:
+      SamResourceId: WhoAmIFunction
 Outputs:
   ApiEndpoint:
     Description: API Gateway endpoint URL

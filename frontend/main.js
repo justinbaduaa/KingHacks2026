@@ -6,6 +6,7 @@ const {
   screen,
 } = require("electron");
 const path = require("path");
+const { ensureValidTokens, loginInteractive } = require("./auth");
 
 let mainWindow = null;
 let isShortcutHeld = false;
@@ -102,7 +103,24 @@ function hideWindow() {
 }
 
 app.whenReady().then(() => {
+  if (process.env.PRINT_TOKEN === "1") {
+    (async () => {
+      const tokens = await ensureValidTokens().catch(() => null);
+      const result = tokens || (await loginInteractive().catch(() => null));
+      if (!result?.access_token) {
+        console.error("No access token available.");
+      } else {
+        console.log(result.id_token);
+      }
+      app.quit();
+    })();
+    return;
+  }
+
   createWindow();
+  if (process.env.OPEN_DEVTOOLS === "1" && mainWindow) {
+    mainWindow.webContents.openDevTools({ mode: "detach" });
+  }
 
   // Register shortcut - fires repeatedly while held
   // Use Option+Shift+Space on Mac, Alt+Shift+Space on Windows/Linux
@@ -113,6 +131,7 @@ app.whenReady().then(() => {
       showWindow();
     }
   });
+
 
   // Poll keyboard state to detect release
   setInterval(() => {
@@ -144,6 +163,17 @@ app.whenReady().then(() => {
     ];
     return transcripts[Math.floor(Math.random() * transcripts.length)];
   });
+
+  ipcMain.handle("auth-status", async () => {
+    const tokens = await ensureValidTokens().catch(() => null);
+    return { authenticated: Boolean(tokens) };
+  });
+
+  ipcMain.handle("auth-login", async () => {
+    const tokens = await loginInteractive();
+    return { authenticated: Boolean(tokens) };
+  });
+
 
   if (process.platform === "darwin") {
     app.dock.hide();
