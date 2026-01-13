@@ -15,6 +15,10 @@ let isShortcutHeld = false;
 const transcribeSession = createTranscribeSession();
 let nodeRecorder = null;
 let recordingActive = false;
+let stopTimer = null;
+let silenceTimer = null;
+let stopRequestedBeforeReady = false;
+let streamReady = false;
 let keyPollInterval = null;
 let windowReady = false;
 let pendingStartListening = false;
@@ -32,14 +36,14 @@ transcribeSession.on("error", (err) => {
   const code = err?.name || err?.code || "error";
   safeSend("transcribe-error", { message, code });
   if (recordingActive) {
-    stopNodeTranscription();
+    stopNodeTranscription({ immediate: true });
   }
 });
 
 transcribeSession.on("ended", () => {
   safeSend("transcribe-ended");
   if (recordingActive) {
-    stopNodeTranscription();
+    stopNodeTranscription({ immediate: true });
   }
 });
 
@@ -394,6 +398,9 @@ async function startNodeTranscription() {
 
   const config = loadConfig();
   const sampleRate = Number(config.transcribeSampleRate || 16000);
+  const pendingChunks = [];
+  streamReady = false;
+  stopRequestedBeforeReady = false;
   let chunkCount = 0;
   let totalBytes = 0;
   let firstChunkLogged = false;
@@ -420,7 +427,7 @@ async function startNodeTranscription() {
     nodeRecorder.process.on("error", (err) => {
       const message = mapRecorderError(err);
       safeSend("transcribe-error", { message, code: "recorder_error" });
-      stopNodeTranscription();
+      stopNodeTranscription({ immediate: true });
     });
   }
 
@@ -428,7 +435,7 @@ async function startNodeTranscription() {
   stream.on("error", (err) => {
     const message = mapRecorderError(err);
     safeSend("transcribe-error", { message, code: "recorder_error" });
-    stopNodeTranscription();
+    stopNodeTranscription({ immediate: true });
   });
   stream.on("data", (chunk) => {
     if (!recordingActive || !chunk) {
@@ -440,6 +447,10 @@ async function startNodeTranscription() {
     }
     chunkCount += 1;
     totalBytes += chunk.length;
+    if (!streamReady) {
+      pendingChunks.push(chunk);
+      return;
+    }
     transcribeSession.enqueue(chunk);
   });
 
@@ -451,15 +462,74 @@ async function startNodeTranscription() {
     console.log(`[RECORDER] chunks=${chunkCount} bytes=${totalBytes}`);
   }, 2000);
 
+  transcribeSession.once("ready", () => {
+    streamReady = true;
+    console.log(`[TRANSCRIBE] Ready. Flushing ${pendingChunks.length} buffered chunks.`);
+    pendingChunks.forEach((chunk) => transcribeSession.enqueue(chunk));
+    pendingChunks.length = 0;
+    if (silenceTimer) {
+      clearInterval(silenceTimer);
+      silenceTimer = null;
+    }
+    if (stopRequestedBeforeReady) {
+      stopRequestedBeforeReady = false;
+      stopNodeTranscription();
+    }
+  });
+
   await transcribeSession.start();
+
+  const silenceChunk = Buffer.alloc(Math.round(sampleRate * 0.1) * 2);
+  silenceTimer = setInterval(() => {
+    if (!recordingActive || streamReady) {
+      if (silenceTimer) {
+        clearInterval(silenceTimer);
+        silenceTimer = null;
+      }
+      return;
+    }
+    transcribeSession.enqueue(silenceChunk);
+  }, 200);
   return true;
 }
 
-async function stopNodeTranscription() {
+function stopNodeTranscription(options = {}) {
+  const immediate = Boolean(options.immediate);
+  if (!recordingActive && !stopTimer) {
+    return;
+  }
+  if (!immediate && recordingActive && !streamReady) {
+    stopRequestedBeforeReady = true;
+    return;
+  }
+  if (immediate) {
+    if (stopTimer) {
+      clearTimeout(stopTimer);
+      stopTimer = null;
+    }
+    stopNodeTranscriptionNow();
+    return;
+  }
+  if (stopTimer) {
+    return;
+  }
+  stopTimer = setTimeout(() => {
+    stopTimer = null;
+    stopNodeTranscriptionNow();
+  }, 1500);
+}
+
+function stopNodeTranscriptionNow() {
   if (!recordingActive) {
     return;
   }
   recordingActive = false;
+  streamReady = false;
+  stopRequestedBeforeReady = false;
+  if (silenceTimer) {
+    clearInterval(silenceTimer);
+    silenceTimer = null;
+  }
   if (nodeRecorder) {
     try {
       nodeRecorder.stop();

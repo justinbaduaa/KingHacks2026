@@ -4,8 +4,12 @@ const State = { IDLE: 'idle', LISTENING: 'listening', PROCESSING: 'processing', 
 let currentState = State.IDLE;
 let keysHeld = false;
 let transcriptionActive = false;
+let transcriptionStopping = false;
 let transcriptFinals = [];
 let transcriptPartial = "";
+let transcriptEndResolver = null;
+let receivedFinal = false;
+let lastTranscriptAt = 0;
 
 
 // Elements
@@ -33,6 +37,7 @@ function startTranscriptionStream() {
   if (transcriptionActive || !window.braindump?.startTranscription) {
     return;
   }
+  transcriptionStopping = false;
   window.braindump
     .startTranscription()
     .then((result) => {
@@ -52,9 +57,37 @@ function stopTranscriptionStream() {
   if (!transcriptionActive || !window.braindump?.stopTranscription) {
     return;
   }
-  transcriptionActive = false;
+  transcriptionStopping = true;
   window.braindump.stopTranscription().catch((err) => {
     console.error("Failed to stop transcription:", err);
+  });
+}
+
+function waitForTranscriptionEnd() {
+  if (!transcriptionActive && !transcriptionStopping) {
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    transcriptEndResolver = () => {
+      transcriptEndResolver = null;
+      if (receivedFinal) {
+        resolve();
+        return;
+      }
+      const graceMs = 600;
+      const check = () => {
+        if (receivedFinal) {
+          resolve();
+          return;
+        }
+        if (Date.now() - lastTranscriptAt >= graceMs) {
+          resolve();
+          return;
+        }
+        setTimeout(check, 100);
+      };
+      check();
+    };
   });
 }
 
@@ -604,6 +637,8 @@ window.braindump.onStartListening(() => {
   setState(State.LISTENING);
   transcriptFinals = [];
   transcriptPartial = "";
+  receivedFinal = false;
+  lastTranscriptAt = 0;
   ensureAuthenticated()
     .then(() => startTranscriptionStream())
     .catch((err) => {
@@ -615,7 +650,7 @@ window.braindump.onStartListening(() => {
 window.braindump.onStopListening(() => {
   stopTranscriptionStream();
   if (currentState === State.LISTENING) {
-    processAndShowAction();
+    waitForTranscriptionEnd().then(() => processAndShowAction());
   }
 });
 
@@ -636,24 +671,34 @@ window.braindump.onTranscribeTranscript?.((event, payload) => {
   if (!payload?.text) {
     return;
   }
+  lastTranscriptAt = Date.now();
   if (payload.partial) {
     transcriptPartial = payload.text;
     console.log(`[partial] ${payload.text}`);
   } else {
     transcriptFinals.push(payload.text);
     transcriptPartial = "";
+    receivedFinal = true;
     console.log(`[final] ${payload.text}`);
   }
 });
 
 window.braindump.onTranscribeEnded?.(() => {
   transcriptionActive = false;
+  transcriptionStopping = false;
   console.warn("Transcribe stream ended.");
+  if (transcriptEndResolver) {
+    transcriptEndResolver();
+  }
 });
 
 window.braindump.onTranscribeError?.((event, payload) => {
   transcriptionActive = false;
+  transcriptionStopping = false;
   console.error("Transcribe stream error:", payload);
+  if (transcriptEndResolver) {
+    transcriptEndResolver();
+  }
 });
 
 

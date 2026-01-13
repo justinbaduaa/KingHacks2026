@@ -250,6 +250,14 @@ html, body {
   white-space: normal;
 }
 
+.action-card[data-type="transcription"] .action-text {
+  overflow: visible;
+  text-overflow: unset;
+  display: block;
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
+}
+
 /* Action Buttons Container */
 .action-buttons {
   display: flex;
