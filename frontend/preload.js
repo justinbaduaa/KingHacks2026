@@ -8,4 +8,9 @@ contextBridge.exposeInMainWorld('braindump', {
   onStopListening: (callback) => ipcRenderer.on('stop-listening', callback), // notifies renderer that the overlay is hidden
   onCheckKeys: (callback) => ipcRenderer.on('check-keys', callback), // checks if keys are still held
   onWindowHidden: (callback) => ipcRenderer.on('window-hidden', callback),
+  authStatus: () => ipcRenderer.invoke('auth-status'),
+  authLogin: () => ipcRenderer.invoke('auth-login'),
+  startTranscription: () => ipcRenderer.invoke('transcribe-start'),
+  stopTranscription: () => ipcRenderer.invoke('transcribe-stop'),
+  sendAudioChunk: (chunk) => ipcRenderer.send('transcribe-audio', chunk),
 });

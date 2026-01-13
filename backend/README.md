@@ -75,6 +75,14 @@ The backend would:
 2) Validate against `backend/schemas/secondbrain.v1.json`.
 3) Return the structured JSON envelope.
 
+## Electron Auth (Cognito Hosted UI)
+
+The Electron app uses the Cognito Hosted UI for login and listens on:
+- `http://127.0.0.1:4387/callback`
+
+Configure the Hosted UI domain + client ID in:
+- `frontend/auth.config.json`
+
 ### Scopes (examples)
 - Identity: `openid email profile`
 - Calendar read: `https://www.googleapis.com/auth/calendar.readonly`

@@ -2,14 +2,10 @@
 
 const State = { IDLE: 'idle', LISTENING: 'listening', PROCESSING: 'processing', CONFIRMED: 'confirmed', COMPLETING: 'completing' };
 let currentState = State.IDLE;
-let animationFrameId = null;
 let keysHeld = false;
 
-// Audio analysis
-let audioContext = null;
-let analyser = null;
-let microphone = null;
-let mediaStream = null;
+let transcriptionActive = false;
+const audioCapture = window.BrainAudioCapture;
 
 // Elements
 const brainContainer = document.getElementById('brain-container');
@@ -21,6 +17,16 @@ const expiredMessage = document.getElementById('expired-message');
 
 // Timer state
 let timerPermanentlyPaused = false;
+
+async function ensureAuthenticated() {
+  if (!window.braindump?.authStatus || !window.braindump?.authLogin) {
+    return;
+  }
+  const status = await window.braindump.authStatus();
+  if (!status?.authenticated) {
+    await window.braindump.authLogin();
+  }
+}
 
 // Mock Data for Stacked UI
 const MOCK_TASKS = [
@@ -492,6 +498,7 @@ function setState(newState, data = {}) {
   
   // Stop audio analysis
   stopAudioAnalysis();
+  stopTranscriptionStream();
   
   switch (newState) {
     case State.IDLE:
@@ -505,6 +512,7 @@ function setState(newState, data = {}) {
     case State.LISTENING:
       brainContainer.classList.remove('hidden');
       cardsStack.classList.remove('visible');
+      startTranscriptionStream();
       startAudioAnalysis();
       break;
       
@@ -528,87 +536,55 @@ function setState(newState, data = {}) {
 
 // Start real audio analysis from microphone
 async function startAudioAnalysis() {
-  try {
-    // Get microphone access
-    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    
-    // Create audio context and analyser
-    audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    analyser = audioContext.createAnalyser();
-    analyser.fftSize = 256;
-    analyser.smoothingTimeConstant = 0.3;
-    
-    // Connect microphone to analyser
-    microphone = audioContext.createMediaStreamSource(mediaStream);
-    microphone.connect(analyser);
-    
-    // Start analyzing
-    const dataArray = new Uint8Array(analyser.frequencyBinCount);
-    
-    function analyze() {
-      if (currentState !== State.LISTENING) return;
-      
-      analyser.getByteFrequencyData(dataArray);
-      
-      // Calculate average volume (RMS-like)
-      let sum = 0;
-      for (let i = 0; i < dataArray.length; i++) {
-        sum += dataArray[i];
-      }
-      const average = sum / dataArray.length;
-      
-      // Normalize to 0-1 range (255 is max value)
-      // Apply scaling to make it more sensitive to quieter sounds
-      const loudness = Math.min(1, (average / 30) * 1.5);
-      
-      updatePulse(loudness);
-      animationFrameId = requestAnimationFrame(analyze);
-    }
-    
-    analyze();
-  } catch (err) {
-    console.error('Error accessing microphone:', err);
-    // Fallback to simulation if microphone access fails
-    startLoudnessSimulation();
+  if (!audioCapture?.start) {
+    console.warn("Audio capture module missing.");
+    return;
   }
+  await audioCapture.start({
+    onLoudness: updatePulse,
+    onAudioChunk: handleAudioChunk,
+  });
 }
 
 // Stop audio analysis and cleanup
 function stopAudioAnalysis() {
-  if (animationFrameId) {
-    cancelAnimationFrame(animationFrameId);
-    animationFrameId = null;
-  }
-  
-  if (mediaStream) {
-    mediaStream.getTracks().forEach(track => track.stop());
-    mediaStream = null;
-  }
-  
-  if (audioContext) {
-    audioContext.close();
-    audioContext = null;
-  }
-  
-  analyser = null;
-  microphone = null;
+  audioCapture?.stop?.();
 }
 
-// Fallback: Simulate audio loudness with random values
-function startLoudnessSimulation() {
-  let phase = 0;
-  function simulate() {
-    if (currentState !== State.LISTENING) return;
-    
-    const base = Math.sin(phase) * 0.3 + 0.4;
-    const noise = (Math.random() - 0.5) * 0.4;
-    const loudness = Math.max(0, Math.min(1, base + noise));
-    
-    updatePulse(loudness);
-    phase += 0.15;
-    animationFrameId = requestAnimationFrame(simulate);
+function startTranscriptionStream() {
+  if (transcriptionActive || !window.braindump?.startTranscription) {
+    return;
   }
-  simulate();
+  window.braindump
+    .startTranscription()
+    .then((result) => {
+      if (result?.started) {
+        transcriptionActive = true;
+      } else {
+        console.error("Failed to start transcription:", result?.error || "unknown_error");
+      }
+    })
+    .catch((err) => {
+      console.error("Failed to start transcription:", err);
+      transcriptionActive = false;
+    });
+}
+
+function stopTranscriptionStream() {
+  if (!transcriptionActive || !window.braindump?.stopTranscription) {
+    return;
+  }
+  transcriptionActive = false;
+  window.braindump.stopTranscription().catch((err) => {
+    console.error("Failed to stop transcription:", err);
+  });
+}
+
+function handleAudioChunk(pcm) {
+  if (!transcriptionActive || !window.braindump?.sendAudioChunk) {
+    return;
+  }
+  window.braindump.sendAudioChunk(pcm);
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -671,4 +647,8 @@ document.addEventListener('keydown', (e) => {
     keysHeld = false;
     window.braindump.hideWindow();
   }
+});
+
+ensureAuthenticated().catch((err) => {
+  console.warn('Auth flow failed to start:', err);
 });

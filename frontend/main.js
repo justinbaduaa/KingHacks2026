@@ -6,9 +6,20 @@ const {
   screen,
 } = require("electron");
 const path = require("path");
+const { ensureValidTokens, loginInteractive } = require("./auth");
+const { createTranscribeSession } = require("./transcribe");
 
 let mainWindow = null;
 let isShortcutHeld = false;
+const transcribeSession = createTranscribeSession();
+
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught exception in main process:", err);
+});
+
+process.on("unhandledRejection", (err) => {
+  console.error("Unhandled rejection in main process:", err);
+});
 
 // creates the overlay window with some special settings, like transparent and always on top, no taskbar
 function createWindow() { 
@@ -102,7 +113,24 @@ function hideWindow() {
 }
 
 app.whenReady().then(() => {
+  if (process.env.PRINT_TOKEN === "1") {
+    (async () => {
+      const tokens = await ensureValidTokens().catch(() => null);
+      const result = tokens || (await loginInteractive().catch(() => null));
+      if (!result?.access_token) {
+        console.error("No access token available.");
+      } else {
+        console.log(result.id_token);
+      }
+      app.quit();
+    })();
+    return;
+  }
+
   createWindow();
+  if (process.env.OPEN_DEVTOOLS === "1" && mainWindow) {
+    mainWindow.webContents.openDevTools({ mode: "detach" });
+  }
 
   // Register shortcut - fires repeatedly while held
   // Use Option+Shift+Space on Mac, Alt+Shift+Space on Windows/Linux
@@ -113,6 +141,7 @@ app.whenReady().then(() => {
       showWindow();
     }
   });
+
 
   // Poll keyboard state to detect release
   setInterval(() => {
@@ -144,6 +173,37 @@ app.whenReady().then(() => {
     ];
     return transcripts[Math.floor(Math.random() * transcripts.length)];
   });
+
+  ipcMain.handle("auth-status", async () => {
+    const tokens = await ensureValidTokens().catch(() => null);
+    return { authenticated: Boolean(tokens) };
+  });
+
+  ipcMain.handle("auth-login", async () => {
+    const tokens = await loginInteractive();
+    return { authenticated: Boolean(tokens) };
+  });
+
+  ipcMain.handle("transcribe-start", async () => {
+    try {
+      const started = await transcribeSession.start();
+      return { started: Boolean(started) };
+    } catch (err) {
+      console.error("Failed to start transcription:", err);
+      return { started: false, error: err?.message || "start_failed" };
+    }
+  });
+
+  ipcMain.handle("transcribe-stop", async () => {
+    transcribeSession.stop();
+    return { stopped: true };
+  });
+
+  ipcMain.on("transcribe-audio", (event, chunk) => {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    transcribeSession.enqueue(buffer);
+  });
+
 
   if (process.platform === "darwin") {
     app.dock.hide();
