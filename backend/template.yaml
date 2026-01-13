@@ -87,7 +87,7 @@ Resources:
         - email
       AutoVerifiedAttributes:
         - email
-      MfaConfiguration: OFF
+      MfaConfiguration: 'OFF'
       Policies:
         PasswordPolicy:
           MinimumLength: 8
@@ -200,11 +200,25 @@ Resources:
         authenticated: !GetAtt CognitoIdentityPoolAuthenticatedRole.Arn
         unauthenticated: !GetAtt CognitoIdentityPoolUnauthenticatedRole.Arn
 
+  # NOTE: Anthropic models auto-enable on first invoke. First-time users may need to submit use case details in Model Catalog.
   IngestFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: src/
       Handler: handlers.ingest.handler
+      Timeout: 30
+      MemorySize: 512
+      Environment:
+        Variables:
+          BEDROCK_MODEL_ID: anthropic.claude-3-haiku-20240307-v1:0
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref DynamoDBTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+              Resource: "*"
       Events:
         Api:
           Type: Api

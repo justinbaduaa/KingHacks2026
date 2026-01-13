@@ -1,186 +1,333 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "SecondBrainExtractionResult",
+  "$id": "braindump.node.v1",
+  "title": "BrainDump Node",
+  "description": "A structured node from voice transcript",
   "type": "object",
-  "additionalProperties": false,
-  "required": ["schema_version", "timezone", "source", "items", "overflow"],
-  "properties": {
-    "schema_version": { "type": "string", "const": "secondbrain.v1" },
-    "timezone": { "type": "string" },
-    "source": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["transcript", "captured_at"],
-      "properties": {
-        "transcript": { "type": "string" },
-        "captured_at": { "type": "string" },
-        "language": { "type": "string" }
-      }
-    },
-    "items": {
-      "type": "array",
-      "items": { "$ref": "#/$defs/item" }
-    },
-    "overflow": {
-      "type": "array",
-      "items": { "$ref": "#/$defs/overflow" }
-    },
-    "global_warnings": {
-      "type": "array",
-      "items": { "type": "string" }
-    }
-  },
   "$defs": {
-    "evidence": {
+    "evidence_item": {
       "type": "object",
-      "additionalProperties": false,
+      "properties": {
+        "quote": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Exact quote from transcript supporting this interpretation"
+        },
+        "word_time_range": {
+          "type": "object",
+          "properties": {
+            "start_ms": { "type": "integer" },
+            "end_ms": { "type": "integer" }
+          },
+          "additionalProperties": false
+        }
+      },
       "required": ["quote"],
-      "properties": {
-        "quote": { "type": "string", "maxLength": 240 }
-      }
+      "additionalProperties": false
     },
-    "when": {
+    "time_interpretation": {
       "type": "object",
-      "additionalProperties": false,
-      "required": ["kind", "original_text", "needs_clarification"],
       "properties": {
+        "original_text": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "The exact text from transcript describing time"
+        },
         "kind": {
           "type": "string",
-          "enum": ["datetime", "date", "time_window", "unspecified"]
+          "enum": ["datetime", "date", "time_window", "relative", "unspecified"],
+          "description": "Type of time specification"
         },
-        "datetime": { "type": "string" },
-        "date": { "type": "string" },
-        "time_window": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["start", "end"],
-          "properties": {
-            "start": { "type": "string" },
-            "end": { "type": "string" }
-          }
+        "resolved_start_iso": {
+          "type": ["string", "null"],
+          "description": "ISO 8601 datetime for start (with offset)"
         },
-        "original_text": { "type": "string", "maxLength": 120 },
-        "needs_clarification": { "type": "boolean" }
-      }
+        "resolved_end_iso": {
+          "type": ["string", "null"],
+          "description": "ISO 8601 datetime for end (with offset), for time windows"
+        },
+        "needs_clarification": {
+          "type": "boolean",
+          "description": "True if time is ambiguous and requires user clarification"
+        },
+        "clarification_question": {
+          "type": ["string", "null"],
+          "maxLength": 200,
+          "description": "Question to ask user if needs_clarification is true"
+        },
+        "resolution_notes": {
+          "type": ["string", "null"],
+          "maxLength": 300,
+          "description": "How the time was interpreted/resolved"
+        }
+      },
+      "required": ["original_text", "kind", "needs_clarification"],
+      "additionalProperties": false
     },
-    "baseItem": {
+    "location_context": {
       "type": "object",
-      "additionalProperties": false,
-      "required": ["type", "temp_id", "body", "confidence", "evidence"],
       "properties": {
-        "type": {
-          "type": "string",
-          "enum": ["note", "todo", "reminder", "email", "calendar"]
+        "location_used": {
+          "type": "boolean",
+          "description": "Whether user_location influenced interpretation"
         },
-        "temp_id": { "type": "string", "pattern": "^t[0-9]+$" },
-        "title": { "type": "string", "maxLength": 120 },
-        "body": { "type": "string", "maxLength": 4000 },
-        "tags": {
-          "type": "array",
-          "items": { "type": "string", "maxLength": 40 },
-          "maxItems": 12
-        },
-        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
-        "evidence": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/evidence" },
-          "minItems": 1,
-          "maxItems": 5
+        "location_relevance": {
+          "type": ["string", "null"],
+          "maxLength": 200,
+          "description": "Why location was or wasn't used"
         }
-      }
+      },
+      "required": ["location_used"],
+      "additionalProperties": false
     },
-    "note": {
-      "allOf": [
-        { "$ref": "#/$defs/baseItem" },
-        {
-          "type": "object",
-          "properties": { "type": { "const": "note" } }
-        }
-      ]
-    },
-    "todo": {
-      "allOf": [
-        { "$ref": "#/$defs/baseItem" },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["type", "temp_id", "body", "confidence", "evidence", "status"],
-          "properties": {
-            "type": { "const": "todo" },
-            "status": { "type": "string", "enum": ["open", "done"] },
-            "due": { "$ref": "#/$defs/when" }
-          }
-        }
-      ]
-    },
-    "reminder": {
-      "allOf": [
-        { "$ref": "#/$defs/baseItem" },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["type", "temp_id", "body", "confidence", "evidence", "when"],
-          "properties": {
-            "type": { "const": "reminder" },
-            "when": { "$ref": "#/$defs/when" }
-          }
-        }
-      ]
-    },
-    "email": {
-      "allOf": [
-        { "$ref": "#/$defs/baseItem" },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["type", "temp_id", "body", "confidence", "evidence", "to"],
-          "properties": {
-            "type": { "const": "email" },
-            "to": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
-            "cc": { "type": "array", "items": { "type": "string" } },
-            "subject": { "type": "string", "maxLength": 160 }
-          }
-        }
-      ]
-    },
-    "calendar": {
-      "allOf": [
-        { "$ref": "#/$defs/baseItem" },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["type", "temp_id", "body", "confidence", "evidence", "start", "end"],
-          "properties": {
-            "type": { "const": "calendar" },
-            "start": { "type": "string" },
-            "end": { "type": "string" },
-            "location": { "type": "string", "maxLength": 200 },
-            "attendees": { "type": "array", "items": { "type": "string" } }
-          }
-        }
-      ]
-    },
-    "item": {
-      "oneOf": [
-        { "$ref": "#/$defs/note" },
-        { "$ref": "#/$defs/todo" },
-        { "$ref": "#/$defs/reminder" },
-        { "$ref": "#/$defs/email" },
-        { "$ref": "#/$defs/calendar" }
-      ]
-    },
-    "overflow": {
+    "recurrence": {
       "type": "object",
-      "additionalProperties": false,
-      "required": ["raw_text", "reason"],
       "properties": {
-        "raw_text": { "type": "string", "maxLength": 400 },
-        "suggested_type": {
+        "pattern": {
           "type": "string",
-          "enum": ["note", "todo", "reminder", "email", "calendar"]
+          "enum": ["none", "daily", "weekly", "monthly"]
         },
-        "reason": { "type": "string", "maxLength": 200 }
-      }
+        "interval": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 365
+        },
+        "byweekday": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["MO", "TU", "WE", "TH", "FR", "SA", "SU"]
+          },
+          "maxItems": 7
+        }
+      },
+      "required": ["pattern"],
+      "additionalProperties": false
+    },
+    "priority": {
+      "type": "string",
+      "enum": ["low", "normal", "high"]
+    },
+    "status": {
+      "type": "string",
+      "enum": ["active", "completed"]
+    },
+    "category_hint": {
+      "type": "string",
+      "enum": ["personal", "school", "work", "health", "finance", "idea", "other"]
+    },
+    "reminder_payload": {
+      "type": "object",
+      "properties": {
+        "reminder_text": {
+          "type": "string",
+          "maxLength": 1000,
+          "description": "What to remind the user about"
+        },
+        "when": { "$ref": "#/$defs/time_interpretation" },
+        "trigger_datetime_iso": {
+          "type": ["string", "null"],
+          "description": "ISO 8601 datetime when reminder should trigger (with offset)"
+        },
+        "recurrence": { "$ref": "#/$defs/recurrence" },
+        "priority": { "$ref": "#/$defs/priority" },
+        "snooze_minutes_default": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1440,
+          "default": 10
+        }
+      },
+      "required": ["reminder_text", "when", "priority"],
+      "additionalProperties": false
+    },
+    "todo_payload": {
+      "type": "object",
+      "properties": {
+        "task": {
+          "type": "string",
+          "maxLength": 1000,
+          "description": "The task to complete"
+        },
+        "due": { "$ref": "#/$defs/time_interpretation" },
+        "due_date_iso": {
+          "type": ["string", "null"],
+          "description": "ISO date YYYY-MM-DD if only date specified"
+        },
+        "due_datetime_iso": {
+          "type": ["string", "null"],
+          "description": "ISO 8601 datetime if specific time specified"
+        },
+        "priority": { "$ref": "#/$defs/priority" },
+        "status_detail": {
+          "type": "string",
+          "enum": ["open", "done"]
+        },
+        "estimated_minutes": {
+          "type": ["integer", "null"],
+          "minimum": 1,
+          "maximum": 10080
+        },
+        "project": {
+          "type": ["string", "null"],
+          "maxLength": 100
+        },
+        "checklist": {
+          "type": "array",
+          "items": { "type": "string", "maxLength": 200 },
+          "maxItems": 20
+        }
+      },
+      "required": ["task", "priority", "status_detail"],
+      "additionalProperties": false
+    },
+    "note_payload": {
+      "type": "object",
+      "properties": {
+        "content": {
+          "type": "string",
+          "maxLength": 4000,
+          "description": "Main note content"
+        },
+        "category_hint": { "$ref": "#/$defs/category_hint" },
+        "pin": {
+          "type": "boolean",
+          "default": false
+        },
+        "related_entities": {
+          "type": "array",
+          "items": { "type": "string", "maxLength": 100 },
+          "maxItems": 12,
+          "description": "People, places, or things mentioned"
+        }
+      },
+      "required": ["content", "category_hint", "pin"],
+      "additionalProperties": false
+    },
+    "calendar_placeholder_payload": {
+      "type": "object",
+      "properties": {
+        "intent": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Description of the calendar event intent"
+        },
+        "event_title": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Title for the calendar event"
+        },
+        "start": { "$ref": "#/$defs/time_interpretation" },
+        "start_datetime_iso": {
+          "type": ["string", "null"],
+          "description": "ISO 8601 start datetime"
+        },
+        "end_datetime_iso": {
+          "type": ["string", "null"],
+          "description": "ISO 8601 end datetime"
+        },
+        "duration_minutes": {
+          "type": ["integer", "null"],
+          "minimum": 1,
+          "maximum": 10080
+        },
+        "location_text": {
+          "type": ["string", "null"],
+          "maxLength": 200
+        },
+        "attendees_text": {
+          "type": "array",
+          "items": { "type": "string", "maxLength": 100 },
+          "maxItems": 20
+        }
+      },
+      "required": ["intent", "event_title", "start"],
+      "additionalProperties": false
     }
-  }
+  },
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "braindump.node.v1"
+    },
+    "node_type": {
+      "type": "string",
+      "enum": ["reminder", "todo", "note", "calendar_placeholder"]
+    },
+    "title": {
+      "type": "string",
+      "maxLength": 120,
+      "description": "Short summary for UI display"
+    },
+    "body": {
+      "type": "string",
+      "maxLength": 4000,
+      "description": "Main text, cleaned version of transcript intent"
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string", "maxLength": 40 },
+      "maxItems": 12
+    },
+    "created_at_iso": {
+      "type": "string",
+      "description": "ISO 8601 UTC when node was created (server time)"
+    },
+    "captured_at_iso": {
+      "type": "string",
+      "description": "ISO 8601 when audio was captured (user time)"
+    },
+    "timezone": {
+      "type": "string",
+      "maxLength": 10,
+      "description": "Timezone offset like -05:00"
+    },
+    "status": { "$ref": "#/$defs/status" },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Model confidence in interpretation (0-1)"
+    },
+    "evidence": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/evidence_item" },
+      "minItems": 1,
+      "maxItems": 5,
+      "description": "Quotes from transcript supporting this node"
+    },
+    "time_interpretation": { "$ref": "#/$defs/time_interpretation" },
+    "location_context": { "$ref": "#/$defs/location_context" },
+    "reminder": { "$ref": "#/$defs/reminder_payload" },
+    "todo": { "$ref": "#/$defs/todo_payload" },
+    "note": { "$ref": "#/$defs/note_payload" },
+    "calendar_placeholder": { "$ref": "#/$defs/calendar_placeholder_payload" },
+    "global_warnings": {
+      "type": "array",
+      "items": { "type": "string", "maxLength": 300 },
+      "maxItems": 10
+    },
+    "parse_debug": {
+      "type": "object",
+      "properties": {
+        "model_id": { "type": "string" },
+        "latency_ms": { "type": "integer" },
+        "tool_name_used": { "type": "string" },
+        "fallback_used": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schema_version",
+    "node_type",
+    "title",
+    "body",
+    "tags",
+    "status",
+    "confidence",
+    "evidence",
+    "location_context"
+  ],
+  "additionalProperties": false
 }
