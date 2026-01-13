@@ -555,11 +555,19 @@ function startTranscriptionStream() {
   if (transcriptionActive || !window.braindump?.startTranscription) {
     return;
   }
-  transcriptionActive = true;
-  window.braindump.startTranscription().catch((err) => {
-    console.error("Failed to start transcription:", err);
-    transcriptionActive = false;
-  });
+  window.braindump
+    .startTranscription()
+    .then((result) => {
+      if (result?.started) {
+        transcriptionActive = true;
+      } else {
+        console.error("Failed to start transcription:", result?.error || "unknown_error");
+      }
+    })
+    .catch((err) => {
+      console.error("Failed to start transcription:", err);
+      transcriptionActive = false;
+    });
 }
 
 function stopTranscriptionStream() {

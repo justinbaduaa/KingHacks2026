@@ -13,6 +13,14 @@ let mainWindow = null;
 let isShortcutHeld = false;
 const transcribeSession = createTranscribeSession();
 
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught exception in main process:", err);
+});
+
+process.on("unhandledRejection", (err) => {
+  console.error("Unhandled rejection in main process:", err);
+});
+
 // creates the overlay window with some special settings, like transparent and always on top, no taskbar
 function createWindow() { 
   const { width: screenWidth, height: screenHeight } =
@@ -177,8 +185,13 @@ app.whenReady().then(() => {
   });
 
   ipcMain.handle("transcribe-start", async () => {
-    await transcribeSession.start();
-    return { started: true };
+    try {
+      const started = await transcribeSession.start();
+      return { started: Boolean(started) };
+    } catch (err) {
+      console.error("Failed to start transcription:", err);
+      return { started: false, error: err?.message || "start_failed" };
+    }
   });
 
   ipcMain.handle("transcribe-stop", async () => {

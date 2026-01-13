@@ -39,10 +39,12 @@ class TranscribeSession {
     this.client = null;
     this.abortController = null;
     this.ended = false;
+    this.streamPromise = null;
+    this.readyForAudio = false;
   }
 
   enqueue(chunk) {
-    if (!this.active || this.ended || !chunk) {
+    if (!this.active || this.ended || !this.readyForAudio || !chunk) {
       return;
     }
     if (this.waiters.length > 0) {
@@ -82,7 +84,7 @@ class TranscribeSession {
 
   async start() {
     if (this.active) {
-      return;
+      return true;
     }
 
     const tokens = await ensureValidTokens().catch(() => null);
@@ -97,12 +99,14 @@ class TranscribeSession {
     if (!region || !identityPoolId) {
       throw new Error("Missing region or identityPoolId in auth.config.json");
     }
+    console.log(`[TRANSCRIBE] Using region=${region} identityPoolId=${identityPoolId}`);
 
     const claims = decodeJwt(idToken);
     const provider = resolveUserPoolProvider(claims.iss);
     if (!provider) {
       throw new Error("Unable to derive Cognito user pool provider from token");
     }
+    console.log(`[TRANSCRIBE] Using provider=${provider}`);
 
     const credentials = fromCognitoIdentityPool({
       client: new CognitoIdentityClient({ region }),
@@ -116,6 +120,7 @@ class TranscribeSession {
     this.abortController = new AbortController();
     this.active = true;
     this.ended = false;
+    this.readyForAudio = false;
 
     const command = new StartStreamTranscriptionCommand({
       LanguageCode: config.transcribeLanguageCode || DEFAULT_LANGUAGE_CODE,
@@ -124,10 +129,18 @@ class TranscribeSession {
       AudioStream: this._audioStream(),
     });
 
+    this.streamPromise = this._runStream(command);
+    return true;
+  }
+
+  async _runStream(command) {
     try {
+      console.log("[TRANSCRIBE] Starting stream...");
       const response = await this.client.send(command, {
         abortSignal: this.abortController.signal,
       });
+      console.log("[TRANSCRIBE] Stream accepted.");
+      this.readyForAudio = true;
       for await (const event of response.TranscriptResultStream) {
         const results = event.TranscriptEvent?.Transcript?.Results || [];
         for (const result of results) {
@@ -149,6 +162,8 @@ class TranscribeSession {
     } finally {
       this.active = false;
       this.ended = true;
+      this.readyForAudio = false;
+      this.queue = [];
       this._clearWaiters();
     }
   }
@@ -159,6 +174,8 @@ class TranscribeSession {
     }
     this.active = false;
     this.ended = true;
+    this.readyForAudio = false;
+    this.queue = [];
     if (this.abortController) {
       this.abortController.abort();
       this.abortController = null;
