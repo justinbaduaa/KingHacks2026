@@ -1,4 +1,4 @@
-// SecondBrain Dashboard - Mock Data & Interactions
+// BrainDump Dashboard - 3-Column Logic
 
 // ===== Mock Data =====
 
@@ -102,22 +102,7 @@ const MOCK_ACTIVITY = [
   }
 ];
 
-// ===== Icons =====
-
-const ICONS = {
-  task: `<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><path d="M9 12l2 2 4-4"/></svg>`,
-  calendar: `<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`,
-  reminder: `<svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>`,
-  note: `<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`,
-  email: `<svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>`
-};
-
 // ===== DOM Elements =====
-
-const loginView = document.getElementById('login-view');
-const mainDashboard = document.getElementById('main-dashboard');
-const loginBtn = document.getElementById('login-btn');
-
 const tasksList = document.getElementById('tasks-list');
 const remindersList = document.getElementById('reminders-list');
 const notesList = document.getElementById('notes-list');
@@ -126,6 +111,10 @@ const activityTimeline = document.getElementById('activity-timeline');
 const tasksCount = document.getElementById('tasks-count');
 const remindersCount = document.getElementById('reminders-count');
 const notesCount = document.getElementById('notes-count');
+const loginBtn = document.getElementById('login-btn');
+const loginView = document.getElementById('login-view');
+const mainDashboard = document.getElementById('main-dashboard');
+
 
 // ===== Render Functions =====
 
@@ -137,7 +126,7 @@ function renderCard(item) {
   return `
     <div class="dash-card" data-id="${item.id}">
       <div class="dash-card-icon ${item.type}">
-        ${ICONS[item.type] || ICONS.task}
+        <i data-feather="${getIconForType(item.type)}"></i>
       </div>
       <div class="dash-card-body">
         <h3>${item.title}</h3>
@@ -155,7 +144,6 @@ function renderCards(container, items, countEl) {
   if (items.length === 0) {
     container.innerHTML = `
       <div class="empty-state">
-        <div class="empty-state-icon">📭</div>
         <p>No items yet</p>
       </div>
     `;
@@ -194,107 +182,71 @@ function renderActivity(container, activityData) {
   container.innerHTML = html;
 }
 
-// ===== Navigation =====
+// ===== Helper =====
+function getIconForType(type) {
+  switch(type) {
+    case 'email': return 'mail';
+    case 'calendar': return 'calendar';
+    case 'note': return 'file-text';
+    case 'reminder': return 'bell';
+    case 'task': return 'check-square';
+    default: return 'mic';
+  }
+}
 
+// ===== Navigation =====
 function setupNavigation() {
   const navItems = document.querySelectorAll('.nav-item');
   
   navItems.forEach(item => {
     item.addEventListener('click', (e) => {
       e.preventDefault();
-      
-      // Remove active from all
       navItems.forEach(nav => nav.classList.remove('active'));
-      
-      // Add active to clicked
       item.classList.add('active');
-      
-      // Could add view switching logic here
-      const view = item.dataset.view;
-      console.log(`[NAV] Switched to ${view}`);
     });
   });
 }
 
 // ===== Login Flow =====
-
 function showDashboard() {
   loginView.classList.add('hidden');
-  
-  // Small delay for smooth transition
   setTimeout(() => {
     mainDashboard.classList.add('visible');
   }, 100);
 }
 
-// ===== Initialize =====
-
-function init() {
-  // Setup window controls (for frameless window)
-  setupWindowControls();
-  
-  // Render all columns
-  renderCards(tasksList, MOCK_TASKS, tasksCount);
-  renderCards(remindersList, MOCK_REMINDERS, remindersCount);
-  renderCards(notesList, MOCK_NOTES, notesCount);
-  renderActivity(activityTimeline, MOCK_ACTIVITY);
-  
-  // Setup navigation
-  setupNavigation();
-  
-  // Login button handler
-  loginBtn.addEventListener('click', (e) => {
-    e.preventDefault();
-    showDashboard();
-  });
-  
-  // Also allow Enter to login
-  document.querySelectorAll('.login-form input').forEach(input => {
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        showDashboard();
-      }
-    });
-  });
-  
-  // Card click handlers
-  document.addEventListener('click', (e) => {
-    const card = e.target.closest('.dash-card');
-    if (card) {
-      const id = card.dataset.id;
-      console.log(`[CARD] Clicked card ${id}`);
-      // Could open detail modal here
-    }
-  });
-}
-
 // ===== Window Controls =====
-
 function setupWindowControls() {
   const btnClose = document.getElementById('btn-close');
   const btnMinimize = document.getElementById('btn-minimize');
   const btnMaximize = document.getElementById('btn-maximize');
   
-  if (btnClose) {
-    btnClose.addEventListener('click', () => {
-      window.braindump.dashboardClose();
-    });
-  }
-  
-  if (btnMinimize) {
-    btnMinimize.addEventListener('click', () => {
-      window.braindump.dashboardMinimize();
-    });
-  }
-  
-  if (btnMaximize) {
-    btnMaximize.addEventListener('click', () => {
-      window.braindump.dashboardMaximize();
-    });
-  }
+  if (btnClose) btnClose.addEventListener('click', () => window.braindump.dashboardClose());
+  if (btnMinimize) btnMinimize.addEventListener('click', () => window.braindump.dashboardMinimize());
+  if (btnMaximize) btnMaximize.addEventListener('click', () => window.braindump.dashboardMaximize());
 }
 
-// Run on DOM ready
-document.addEventListener('DOMContentLoaded', init);
+// ===== Init =====
+document.addEventListener('DOMContentLoaded', () => {
+  renderCards(tasksList, MOCK_TASKS, tasksCount);
+  renderCards(remindersList, MOCK_REMINDERS, remindersCount);
+  renderCards(notesList, MOCK_NOTES, notesCount);
+  renderActivity(activityTimeline, MOCK_ACTIVITY);
+  
+  setupNavigation();
+  setupWindowControls();
+  
+  // Login handlers
+  if (loginBtn) {
+    loginBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      showDashboard();
+    });
+  }
+  
+  // Initialize Feather Icons
+  feather.replace();
+});
+
+
 
