@@ -4,8 +4,6 @@ const State = { IDLE: 'idle', LISTENING: 'listening', PROCESSING: 'processing', 
 let currentState = State.IDLE;
 let keysHeld = false;
 
-let transcriptionActive = false;
-const audioCapture = window.BrainAudioCapture;
 
 // Elements
 const brainContainer = document.getElementById('brain-container');
@@ -17,16 +15,6 @@ const expiredMessage = document.getElementById('expired-message');
 
 // Timer state
 let timerPermanentlyPaused = false;
-
-async function ensureAuthenticated() {
-  if (!window.braindump?.authStatus || !window.braindump?.authLogin) {
-    return;
-  }
-  const status = await window.braindump.authStatus();
-  if (!status?.authenticated) {
-    await window.braindump.authLogin();
-  }
-}
 
 // Mock Data for Stacked UI
 const MOCK_TASKS = [
@@ -496,10 +484,6 @@ function setState(newState, data = {}) {
   currentState = newState;
   brainContainer.className = 'brain-container ' + newState;
   
-  // Stop audio analysis
-  stopAudioAnalysis();
-  stopTranscriptionStream();
-  
   switch (newState) {
     case State.IDLE:
       pulseRing.style.transform = 'scale(1)';
@@ -512,8 +496,6 @@ function setState(newState, data = {}) {
     case State.LISTENING:
       brainContainer.classList.remove('hidden');
       cardsStack.classList.remove('visible');
-      startTranscriptionStream();
-      startAudioAnalysis();
       break;
       
     case State.PROCESSING:
@@ -532,59 +514,6 @@ function setState(newState, data = {}) {
       cardsStack.classList.remove('visible');
       break;
   }
-}
-
-// Start real audio analysis from microphone
-async function startAudioAnalysis() {
-  if (!audioCapture?.start) {
-    console.warn("Audio capture module missing.");
-    return;
-  }
-  await audioCapture.start({
-    onLoudness: updatePulse,
-    onAudioChunk: handleAudioChunk,
-  });
-}
-
-// Stop audio analysis and cleanup
-function stopAudioAnalysis() {
-  audioCapture?.stop?.();
-}
-
-function startTranscriptionStream() {
-  if (transcriptionActive || !window.braindump?.startTranscription) {
-    return;
-  }
-  window.braindump
-    .startTranscription()
-    .then((result) => {
-      if (result?.started) {
-        transcriptionActive = true;
-      } else {
-        console.error("Failed to start transcription:", result?.error || "unknown_error");
-      }
-    })
-    .catch((err) => {
-      console.error("Failed to start transcription:", err);
-      transcriptionActive = false;
-    });
-}
-
-function stopTranscriptionStream() {
-  if (!transcriptionActive || !window.braindump?.stopTranscription) {
-    return;
-  }
-  transcriptionActive = false;
-  window.braindump.stopTranscription().catch((err) => {
-    console.error("Failed to stop transcription:", err);
-  });
-}
-
-function handleAudioChunk(pcm) {
-  if (!transcriptionActive || !window.braindump?.sendAudioChunk) {
-    return;
-  }
-  window.braindump.sendAudioChunk(pcm);
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -641,14 +570,11 @@ window.braindump.onWindowHidden(() => {
   }
 });
 
+
 // Escape to cancel
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     keysHeld = false;
     window.braindump.hideWindow();
   }
-});
-
-ensureAuthenticated().catch((err) => {
-  console.warn('Auth flow failed to start:', err);
 });

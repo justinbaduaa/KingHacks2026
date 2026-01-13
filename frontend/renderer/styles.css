@@ -638,3 +638,40 @@ html, body {
   background: rgba(255, 180, 200, 0.35);
   border-color: rgba(255, 180, 200, 0.5);
 }
+
+/* ===== Debug Recording Controls ===== */
+#debug-controls {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: rgba(20, 20, 20, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.8);
+  z-index: 200;
+}
+
+#debug-controls button {
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.85);
+  padding: 4px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+#debug-controls button:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+#debug-record-status {
+  min-width: 70px;
+  text-align: right;
+}

@@ -6,7 +6,10 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron . --enable-logging",
-    "token": "PRINT_TOKEN=1 electron ."
+    "token": "PRINT_TOKEN=1 electron .",
+    "record-min": "ELECTRON_ENABLE_LOGGING=1 electron recording_min/main.js",
+    "record-node": "node recording_min/node_record.js",
+    "record-node-transcribe": "node recording_min/node_transcribe.js"
   },
   "keywords": [
     "electron",
@@ -23,6 +26,7 @@
   "dependencies": {
     "@aws-sdk/client-cognito-identity": "^3.620.0",
     "@aws-sdk/client-transcribe-streaming": "^3.620.0",
-    "@aws-sdk/credential-providers": "^3.620.0"
+    "@aws-sdk/credential-providers": "^3.620.0",
+    "node-record-lpcm16": "^1.0.1"
   }
 }

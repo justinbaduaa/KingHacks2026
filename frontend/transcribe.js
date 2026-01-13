@@ -4,6 +4,7 @@ const {
 } = require("@aws-sdk/client-transcribe-streaming");
 const { CognitoIdentityClient } = require("@aws-sdk/client-cognito-identity");
 const { fromCognitoIdentityPool } = require("@aws-sdk/credential-providers");
+const { EventEmitter } = require("events");
 
 const { ensureValidTokens, loadConfig } = require("./auth");
 
@@ -31,8 +32,9 @@ function resolveUserPoolProvider(iss) {
   return `${url.host}/${userPoolId}`;
 }
 
-class TranscribeSession {
+class TranscribeSession extends EventEmitter {
   constructor() {
+    super();
     this.active = false;
     this.queue = [];
     this.waiters = [];
@@ -80,6 +82,18 @@ class TranscribeSession {
       const waiter = this.waiters.shift();
       waiter(null);
     }
+  }
+
+  _markEnded() {
+    if (this.ended) {
+      return;
+    }
+    this.active = false;
+    this.ended = true;
+    this.readyForAudio = false;
+    this.queue = [];
+    this._clearWaiters();
+    this.emit("ended");
   }
 
   async start() {
@@ -141,6 +155,7 @@ class TranscribeSession {
       });
       console.log("[TRANSCRIBE] Stream accepted.");
       this.readyForAudio = true;
+      this.emit("ready");
       for await (const event of response.TranscriptResultStream) {
         const results = event.TranscriptEvent?.Transcript?.Results || [];
         for (const result of results) {
@@ -158,13 +173,10 @@ class TranscribeSession {
     } catch (err) {
       if (err?.name !== "AbortError") {
         console.error("Transcribe stream error:", err);
+        this.emit("error", err);
       }
     } finally {
-      this.active = false;
-      this.ended = true;
-      this.readyForAudio = false;
-      this.queue = [];
-      this._clearWaiters();
+      this._markEnded();
     }
   }
 
@@ -173,14 +185,11 @@ class TranscribeSession {
       return;
     }
     this.active = false;
-    this.ended = true;
-    this.readyForAudio = false;
-    this.queue = [];
     if (this.abortController) {
       this.abortController.abort();
       this.abortController = null;
     }
-    this._clearWaiters();
+    this._markEnded();
   }
 }
 

@@ -7,11 +7,12 @@ const {
 } = require("electron");
 const path = require("path");
 const { ensureValidTokens, loginInteractive } = require("./auth");
-const { createTranscribeSession } = require("./transcribe");
 
 let mainWindow = null;
 let isShortcutHeld = false;
-const transcribeSession = createTranscribeSession();
+let keyPollInterval = null;
+let windowReady = false;
+let pendingStartListening = false;
 
 process.on("uncaughtException", (err) => {
   console.error("Uncaught exception in main process:", err);
@@ -22,7 +23,7 @@ process.on("unhandledRejection", (err) => {
 });
 
 // creates the overlay window with some special settings, like transparent and always on top, no taskbar
-function createWindow() { 
+function createWindow() {
   const { width: screenWidth, height: screenHeight } =
     screen.getPrimaryDisplay().workAreaSize;
 
@@ -56,6 +57,22 @@ function createWindow() {
   });
 
   mainWindow.loadFile(path.join(__dirname, "renderer", "index.html"));
+  windowReady = false;
+  pendingStartListening = false;
+
+  mainWindow.webContents.on("did-finish-load", () => {
+    windowReady = true;
+    if (pendingStartListening) {
+      pendingStartListening = false;
+      if (safeSend("start-listening")) {
+        startKeyPoll();
+      }
+    }
+  });
+
+  mainWindow.webContents.on("did-fail-load", () => {
+    windowReady = false;
+  });
 
   mainWindow.on("blur", () => {
     if (!isShortcutHeld) {
@@ -69,10 +86,35 @@ function createWindow() {
       hideWindow();
     }
   });
+
+  mainWindow.on("closed", () => {
+    stopKeyPoll();
+    windowReady = false;
+    pendingStartListening = false;
+    mainWindow = null;
+  });
+
+  mainWindow.webContents.on("render-process-gone", () => {
+    stopKeyPoll();
+    windowReady = false;
+    pendingStartListening = false;
+    isShortcutHeld = false;
+  });
+
+  mainWindow.webContents.on("destroyed", () => {
+    stopKeyPoll();
+    windowReady = false;
+    pendingStartListening = false;
+    isShortcutHeld = false;
+  });
 }
+
 
 // shwos the overlay at the bottom centre of the current screen (semi-works with multidisplays)
 function showWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    createWindow();
+  }
   if (mainWindow) {
     // Get the display where the cursor currently is
     const cursorPoint = screen.getCursorScreenPoint();
@@ -100,7 +142,11 @@ function showWindow() {
 
     mainWindow.show();
     mainWindow.focus();
-    mainWindow.webContents.send("start-listening");
+    if (!windowReady) {
+      pendingStartListening = true;
+    } else if (safeSend("start-listening")) {
+      startKeyPoll();
+    }
   }
 }
 
@@ -108,8 +154,57 @@ function showWindow() {
 function hideWindow() {
   if (mainWindow && mainWindow.isVisible()) {
     mainWindow.hide();
-    mainWindow.webContents.send("window-hidden");
+    safeSend("window-hidden");
+    stopKeyPoll();
   }
+}
+
+function canSend() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return false;
+  }
+  if (!mainWindow.webContents || mainWindow.webContents.isDestroyed()) {
+    return false;
+  }
+  if (mainWindow.webContents.isCrashed()) {
+    return false;
+  }
+  return true;
+}
+
+function safeSend(channel, ...args) {
+  if (!canSend()) {
+    stopKeyPoll();
+    isShortcutHeld = false;
+    return false;
+  }
+  try {
+    mainWindow.webContents.send(channel, ...args);
+    return true;
+  } catch (err) {
+    stopKeyPoll();
+    isShortcutHeld = false;
+    return false;
+  }
+}
+
+function startKeyPoll() {
+  if (keyPollInterval) {
+    return;
+  }
+  keyPollInterval = setInterval(() => {
+    if (isShortcutHeld && mainWindow && mainWindow.isVisible()) {
+      safeSend("check-keys");
+    }
+  }, 100);
+}
+
+function stopKeyPoll() {
+  if (!keyPollInterval) {
+    return;
+  }
+  clearInterval(keyPollInterval);
+  keyPollInterval = null;
 }
 
 app.whenReady().then(() => {
@@ -127,6 +222,8 @@ app.whenReady().then(() => {
     return;
   }
 
+  registerIpcHandlers();
+
   createWindow();
   if (process.env.OPEN_DEVTOOLS === "1" && mainWindow) {
     mainWindow.webContents.openDevTools({ mode: "detach" });
@@ -143,14 +240,36 @@ app.whenReady().then(() => {
   });
 
 
-  // Poll keyboard state to detect release
-  setInterval(() => {
-    if (isShortcutHeld && mainWindow && mainWindow.isVisible()) {
-      // Send ping to check if keys are still held
-      mainWindow.webContents.send("check-keys");
-    }
-  }, 100);
+  if (process.platform === "darwin") {
+    app.dock.hide();
+  }
+});
 
+app.on("will-quit", () => {
+  globalShortcut.unregisterAll();
+});
+
+app.on("before-quit", () => {
+  app.isQuitting = true;
+  if (keyPollInterval) {
+    clearInterval(keyPollInterval);
+    keyPollInterval = null;
+  }
+});
+
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") {
+    app.quit();
+  }
+});
+
+app.on("activate", () => {
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createWindow();
+  }
+});
+
+function registerIpcHandlers() {
   // IPC handlers
   ipcMain.handle("hide-window", () => {
     hideWindow();
@@ -159,7 +278,8 @@ app.whenReady().then(() => {
   ipcMain.handle("keys-released", () => {
     if (isShortcutHeld) {
       isShortcutHeld = false;
-      mainWindow.webContents.send("stop-listening");
+      stopKeyPoll();
+      safeSend("stop-listening");
     }
   });
 
@@ -184,48 +304,4 @@ app.whenReady().then(() => {
     return { authenticated: Boolean(tokens) };
   });
 
-  ipcMain.handle("transcribe-start", async () => {
-    try {
-      const started = await transcribeSession.start();
-      return { started: Boolean(started) };
-    } catch (err) {
-      console.error("Failed to start transcription:", err);
-      return { started: false, error: err?.message || "start_failed" };
-    }
-  });
-
-  ipcMain.handle("transcribe-stop", async () => {
-    transcribeSession.stop();
-    return { stopped: true };
-  });
-
-  ipcMain.on("transcribe-audio", (event, chunk) => {
-    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-    transcribeSession.enqueue(buffer);
-  });
-
-
-  if (process.platform === "darwin") {
-    app.dock.hide();
-  }
-});
-
-app.on("will-quit", () => {
-  globalShortcut.unregisterAll();
-});
-
-app.on("before-quit", () => {
-  app.isQuitting = true;
-});
-
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    app.quit();
-  }
-});
-
-app.on("activate", () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow();
-  }
-});
+}
