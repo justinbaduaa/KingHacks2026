@@ -513,8 +513,9 @@ document.getElementById('open-dashboard-btn').addEventListener('click', () => {
     clearTimeout(expiredDismissTimeout);
     expiredDismissTimeout = null;
   }
-  // Placeholder: Could open a dashboard URL or trigger IPC to main process
+  // Open the dashboard window and hide the overlay
   console.log('[DASHBOARD] Opening dashboard...');
+  window.braindump.openDashboard();
   window.braindump.hideWindow();
 });
 
