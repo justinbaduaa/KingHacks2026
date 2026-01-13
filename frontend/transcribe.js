@@ -42,11 +42,10 @@ class TranscribeSession extends EventEmitter {
     this.abortController = null;
     this.ended = false;
     this.streamPromise = null;
-    this.readyForAudio = false;
   }
 
   enqueue(chunk) {
-    if (!this.active || this.ended || !this.readyForAudio || !chunk) {
+    if (!this.active || this.ended || !chunk) {
       return;
     }
     if (this.waiters.length > 0) {
@@ -90,7 +89,6 @@ class TranscribeSession extends EventEmitter {
     }
     this.active = false;
     this.ended = true;
-    this.readyForAudio = false;
     this.queue = [];
     this._clearWaiters();
     this.emit("ended");
@@ -134,7 +132,6 @@ class TranscribeSession extends EventEmitter {
     this.abortController = new AbortController();
     this.active = true;
     this.ended = false;
-    this.readyForAudio = false;
 
     const command = new StartStreamTranscriptionCommand({
       LanguageCode: config.transcribeLanguageCode || DEFAULT_LANGUAGE_CODE,
@@ -154,7 +151,6 @@ class TranscribeSession extends EventEmitter {
         abortSignal: this.abortController.signal,
       });
       console.log("[TRANSCRIBE] Stream accepted.");
-      this.readyForAudio = true;
       this.emit("ready");
       for await (const event of response.TranscriptResultStream) {
         const results = event.TranscriptEvent?.Transcript?.Results || [];
@@ -163,6 +159,8 @@ class TranscribeSession extends EventEmitter {
           if (!alternative?.Transcript) {
             continue;
           }
+          const payload = { text: alternative.Transcript, partial: Boolean(result.IsPartial) };
+          this.emit("transcript", payload);
           if (result.IsPartial) {
             console.log(`[TRANSCRIBE partial] ${alternative.Transcript}`);
           } else {

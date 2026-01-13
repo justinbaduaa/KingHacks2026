@@ -15,7 +15,7 @@
 - Streams partial transcripts to terminal, prints final transcript at the end.
 - Auth options:
   - Use AWS creds in env (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`)
-  - Or use Cognito id token: `COGNITO_ID_TOKEN="..." npm run record-node-transcribe`
+  - Or use Cognito id token: `COGNITO_ID_TOKEN="..." npm run record-node-transcribe` (i used this one justin)
 
 ## What Fails
 - `npm run record-min` (minimal Electron renderer app in `frontend/recording_min/`)

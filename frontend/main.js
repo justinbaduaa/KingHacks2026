@@ -6,10 +6,15 @@ const {
   screen,
 } = require("electron");
 const path = require("path");
-const { ensureValidTokens, loginInteractive } = require("./auth");
+const record = require("node-record-lpcm16");
+const { ensureValidTokens, loadConfig, loginInteractive } = require("./auth");
+const { createTranscribeSession } = require("./transcribe");
 
 let mainWindow = null;
 let isShortcutHeld = false;
+const transcribeSession = createTranscribeSession();
+let nodeRecorder = null;
+let recordingActive = false;
 let keyPollInterval = null;
 let windowReady = false;
 let pendingStartListening = false;
@@ -20,6 +25,26 @@ process.on("uncaughtException", (err) => {
 
 process.on("unhandledRejection", (err) => {
   console.error("Unhandled rejection in main process:", err);
+});
+
+transcribeSession.on("error", (err) => {
+  const message = err?.Message || err?.message || "Transcribe error";
+  const code = err?.name || err?.code || "error";
+  safeSend("transcribe-error", { message, code });
+  if (recordingActive) {
+    stopNodeTranscription();
+  }
+});
+
+transcribeSession.on("ended", () => {
+  safeSend("transcribe-ended");
+  if (recordingActive) {
+    stopNodeTranscription();
+  }
+});
+
+transcribeSession.on("transcript", (payload) => {
+  safeSend("transcribe-transcript", payload);
 });
 
 // creates the overlay window with some special settings, like transparent and always on top, no taskbar
@@ -304,4 +329,144 @@ function registerIpcHandlers() {
     return { authenticated: Boolean(tokens) };
   });
 
+  ipcMain.handle("transcribe-start", async () => {
+    try {
+      const started = await startNodeTranscription();
+      return { started: Boolean(started) };
+    } catch (err) {
+      console.error("Failed to start transcription:", err);
+      return { started: false, error: err?.message || "start_failed" };
+    }
+  });
+
+  ipcMain.handle("transcribe-stop", async () => {
+    await stopNodeTranscription();
+    return { stopped: true };
+  });
+
+}
+
+function mapRecorderError(err) {
+  const message = err?.message || String(err || "recorder_error");
+  if (message.includes("spawn sox") || message.includes("ENOENT")) {
+    return "Missing sox. Install with `brew install sox`.";
+  }
+  return message;
+}
+
+function waitForTranscribeReady(timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error("Transcribe stream not ready"));
+    }, timeoutMs);
+
+    function onReady() {
+      cleanup();
+      resolve();
+    }
+
+    function onError(err) {
+      cleanup();
+      reject(err);
+    }
+
+    function cleanup() {
+      clearTimeout(timer);
+      transcribeSession.off("ready", onReady);
+      transcribeSession.off("error", onError);
+    }
+
+    transcribeSession.on("ready", onReady);
+    transcribeSession.on("error", onError);
+  });
+}
+
+async function startNodeTranscription() {
+  if (recordingActive) {
+    return false;
+  }
+
+  const tokens = await ensureValidTokens().catch(() => null);
+  if (!tokens?.id_token) {
+    throw new Error("Not authenticated. Run auth login before recording.");
+  }
+
+  const config = loadConfig();
+  const sampleRate = Number(config.transcribeSampleRate || 16000);
+  let chunkCount = 0;
+  let totalBytes = 0;
+  let firstChunkLogged = false;
+
+  nodeRecorder = record.record({
+    sampleRate,
+    channels: 1,
+    audioType: "raw",
+    verbose: false,
+  });
+
+  recordingActive = true;
+
+  if (nodeRecorder.process) {
+    console.log("[RECORDER] Started sox:", nodeRecorder.process.spawnargs?.join(" ") || nodeRecorder.process.spawnargs);
+    if (nodeRecorder.process.stderr) {
+      nodeRecorder.process.stderr.on("data", (data) => {
+        const text = data.toString().trim();
+        if (text) {
+          console.warn("[RECORDER] sox stderr:", text);
+        }
+      });
+    }
+    nodeRecorder.process.on("error", (err) => {
+      const message = mapRecorderError(err);
+      safeSend("transcribe-error", { message, code: "recorder_error" });
+      stopNodeTranscription();
+    });
+  }
+
+  const stream = nodeRecorder.stream();
+  stream.on("error", (err) => {
+    const message = mapRecorderError(err);
+    safeSend("transcribe-error", { message, code: "recorder_error" });
+    stopNodeTranscription();
+  });
+  stream.on("data", (chunk) => {
+    if (!recordingActive || !chunk) {
+      return;
+    }
+    if (!firstChunkLogged) {
+      firstChunkLogged = true;
+      console.log("[RECORDER] First audio chunk received.");
+    }
+    chunkCount += 1;
+    totalBytes += chunk.length;
+    transcribeSession.enqueue(chunk);
+  });
+
+  const statsTimer = setInterval(() => {
+    if (!recordingActive) {
+      clearInterval(statsTimer);
+      return;
+    }
+    console.log(`[RECORDER] chunks=${chunkCount} bytes=${totalBytes}`);
+  }, 2000);
+
+  await transcribeSession.start();
+  return true;
+}
+
+async function stopNodeTranscription() {
+  if (!recordingActive) {
+    return;
+  }
+  recordingActive = false;
+  if (nodeRecorder) {
+    try {
+      nodeRecorder.stop();
+    } catch (err) {
+      console.warn("Failed to stop recorder:", err);
+    }
+    nodeRecorder = null;
+  }
+  transcribeSession.stop();
 }

@@ -3,6 +3,9 @@
 const State = { IDLE: 'idle', LISTENING: 'listening', PROCESSING: 'processing', CONFIRMED: 'confirmed', COMPLETING: 'completing' };
 let currentState = State.IDLE;
 let keysHeld = false;
+let transcriptionActive = false;
+let transcriptFinals = [];
+let transcriptPartial = "";
 
 
 // Elements
@@ -16,12 +19,62 @@ const expiredMessage = document.getElementById('expired-message');
 // Timer state
 let timerPermanentlyPaused = false;
 
-// Mock Data for Stacked UI
-const MOCK_TASKS = [
-  { type: 'Reminder', text: "Email Sarah tomorrow about the project update" },
-  { type: 'Calendar', text: "Meeting with Design Team at 2:00 PM" },
-  { type: 'Todo', text: "Research competitors for new feature" }
-];
+async function ensureAuthenticated() {
+  if (!window.braindump?.authStatus || !window.braindump?.authLogin) {
+    return;
+  }
+  const status = await window.braindump.authStatus();
+  if (!status?.authenticated) {
+    await window.braindump.authLogin();
+  }
+}
+
+function startTranscriptionStream() {
+  if (transcriptionActive || !window.braindump?.startTranscription) {
+    return;
+  }
+  window.braindump
+    .startTranscription()
+    .then((result) => {
+      if (result?.started) {
+        transcriptionActive = true;
+      } else {
+        console.error("Failed to start transcription:", result?.error || "unknown_error");
+      }
+    })
+    .catch((err) => {
+      console.error("Failed to start transcription:", err);
+      transcriptionActive = false;
+    });
+}
+
+function stopTranscriptionStream() {
+  if (!transcriptionActive || !window.braindump?.stopTranscription) {
+    return;
+  }
+  transcriptionActive = false;
+  window.braindump.stopTranscription().catch((err) => {
+    console.error("Failed to stop transcription:", err);
+  });
+}
+
+function getTranscriptText() {
+  const finalText = transcriptFinals.join(" ").trim();
+  if (finalText) {
+    return finalText;
+  }
+  const partialText = (transcriptPartial || "").trim();
+  return partialText || "No transcription captured.";
+}
+
+function buildTranscriptTask() {
+  return [
+    {
+      type: "Transcription",
+      text: getTranscriptText(),
+    },
+  ];
+}
 
 // Helper: Get icon SVG based on card type
 function getIconForType(type) {
@@ -523,8 +576,8 @@ async function processAndShowAction() {
   setState(State.PROCESSING);
   await sleep(300);
   
-  // Generate and render cards before showing
-  renderCards(MOCK_TASKS);
+  // Generate and render single transcript card
+  renderCards(buildTranscriptTask());
   
   // Show the card stack
   setState(State.CONFIRMED);
@@ -549,10 +602,18 @@ window.braindump.onCheckKeys(() => {
 window.braindump.onStartListening(() => {
   keysHeld = true;
   setState(State.LISTENING);
+  transcriptFinals = [];
+  transcriptPartial = "";
+  ensureAuthenticated()
+    .then(() => startTranscriptionStream())
+    .catch((err) => {
+      console.warn("Auth flow failed to start:", err);
+    });
 });
 
 // Stop listening and show action
 window.braindump.onStopListening(() => {
+  stopTranscriptionStream();
   if (currentState === State.LISTENING) {
     processAndShowAction();
   }
@@ -560,6 +621,7 @@ window.braindump.onStopListening(() => {
 
 // Window hidden - reset state (but not if completing tasks)
 window.braindump.onWindowHidden(() => {
+  stopTranscriptionStream();
   // Only reset to IDLE if we weren't completing tasks
   // This prevents the brain from flashing when tasks finish
   if (currentState !== State.COMPLETING) {
@@ -568,6 +630,30 @@ window.braindump.onWindowHidden(() => {
     // Reset for next session, but keep brain hidden for now
     currentState = State.IDLE;
   }
+});
+
+window.braindump.onTranscribeTranscript?.((event, payload) => {
+  if (!payload?.text) {
+    return;
+  }
+  if (payload.partial) {
+    transcriptPartial = payload.text;
+    console.log(`[partial] ${payload.text}`);
+  } else {
+    transcriptFinals.push(payload.text);
+    transcriptPartial = "";
+    console.log(`[final] ${payload.text}`);
+  }
+});
+
+window.braindump.onTranscribeEnded?.(() => {
+  transcriptionActive = false;
+  console.warn("Transcribe stream ended.");
+});
+
+window.braindump.onTranscribeError?.((event, payload) => {
+  transcriptionActive = false;
+  console.error("Transcribe stream error:", payload);
 });
 
 
