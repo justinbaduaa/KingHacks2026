@@ -1,4 +1,4 @@
-"""Bedrock Converse API client with tool use for BrainDump."""
+"""Bedrock Converse API client with tool use for Seocnd-Brain."""
 
 import json
 import time
@@ -262,7 +262,7 @@ def build_tools():
     ]
 
 
-SYSTEM_PROMPT = '''You are BrainDump, an AI that converts messy voice transcripts into ONE structured node.
+SYSTEM_PROMPT = '''You are Second-Brain, an AI that converts messy voice transcripts into ONE structured node.
 
 ## Your Task
 Analyze the transcript and create exactly ONE node by calling one of these tools:

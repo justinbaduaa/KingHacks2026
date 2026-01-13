@@ -3,6 +3,7 @@
 import json
 import os
 import logging
+from typing import Any
 
 from lib.response import api_response, error_response
 from lib.bedrock_converse import call_converse
@@ -84,7 +85,7 @@ def finalize_node(
     fallback_used: bool
 ) -> dict:
     """Add server-side fields to the node."""
-    node = dict(node)
+    node = dict[Any, Any](node)
     
     # Set server timestamps
     node["created_at_iso"] = created_at_iso
