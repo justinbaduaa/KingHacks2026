@@ -371,7 +371,7 @@ app.whenReady().then(() => {
   setInterval(() => {
     if (isShortcutHeld && mainWindow && mainWindow.isVisible()) {
       // Send ping to check if keys are still held
-      mainWindow.webContents.send("check-keys");
+      safeSend("check-keys");
     }
   }, 100);
 

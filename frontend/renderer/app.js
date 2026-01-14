@@ -27,6 +27,8 @@ let expiredDismissTimeout = null;
 let currentTasks = [];  // Real tasks from backend
 let transcriptBuffer = '';  // Buffer for collecting transcript
 let audioStreamProcessor = null;  // Audio processor for streaming to main process
+let audioWorkletNode = null;  // AudioWorklet node for modern audio processing
+let workletReady = false;  // Flag to track if worklet is registered
 let isTranscribing = false;
 
 // Debug: Keep mock data as fallback for testing
@@ -629,7 +631,7 @@ async function startAudioAnalysis() {
     // Now that audio context is ready, start streaming if transcription is active
     if (isTranscribing) {
       console.log('[AUDIO] Context ready, starting transcription stream');
-      startAudioStreaming();
+      await startAudioStreaming();
     }
     
     // Start analyzing for pulse ring visualization
@@ -678,6 +680,7 @@ function stopAudioAnalysis() {
   if (audioContext) {
     audioContext.close();
     audioContext = null;
+    workletReady = false;  // Reset so worklet is re-registered with new context
   }
   
   analyser = null;
@@ -776,9 +779,9 @@ window.braindump.onTranscript((payload) => {
   }
 });
 
-window.braindump.onTranscribeReady(() => {
+window.braindump.onTranscribeReady(async () => {
   console.log('[TRANSCRIBE] Stream ready, starting audio capture');
-  startAudioStreaming();
+  await startAudioStreaming();
 });
 
 window.braindump.onTranscribeError((err) => {
@@ -793,41 +796,88 @@ window.braindump.onTranscribeEnded(() => {
   stopAudioStreaming();
 });
 
-// Start streaming audio to main process for transcription
-function startAudioStreaming() {
-  if (audioStreamProcessor) return;
+// Start streaming audio to main process for transcription using AudioWorklet
+async function startAudioStreaming() {
+  if (audioWorkletNode) return;
   if (!audioContext || !microphone) {
     console.warn('[AUDIO] Cannot start streaming - no audio context or microphone');
     return;
   }
   
-  // Create a script processor to capture PCM audio
-  // Buffer size of 4096 at 16000Hz = 256ms chunks
+  try {
+    // Register the AudioWorklet module if not already done
+    if (!workletReady) {
+      console.log('[AUDIO] Registering AudioWorklet module...');
+      await audioContext.audioWorklet.addModule('./audio-processor.js');
+      workletReady = true;
+      console.log('[AUDIO] AudioWorklet module registered');
+    }
+    
+    // Create AudioWorkletNode
+    audioWorkletNode = new AudioWorkletNode(audioContext, 'audio-stream-processor');
+    
+    // Calculate optimal buffer size based on sample rate
+    // We want ~256ms chunks for AWS Transcribe
+    const targetChunkMs = 256;
+    const bufferSize = Math.floor(audioContext.sampleRate * (targetChunkMs / 1000));
+    audioWorkletNode.port.postMessage({ type: 'setBufferSize', size: bufferSize });
+    
+    // Handle messages from the worklet
+    audioWorkletNode.port.onmessage = (event) => {
+      if (event.data.type === 'audio' && isTranscribing) {
+        // The worklet sends Int16 PCM data, forward to main process
+        window.braindump.sendAudioChunk(event.data.buffer);
+      }
+    };
+    
+    // Connect microphone -> worklet
+    // Note: AudioWorklet doesn't need to connect to destination to stay alive
+    microphone.connect(audioWorkletNode);
+    
+    console.log('[AUDIO] AudioWorklet streaming started at', audioContext.sampleRate, 'Hz');
+  } catch (err) {
+    console.error('[AUDIO] Failed to start AudioWorklet:', err);
+    // Fallback: try the old ScriptProcessorNode (may still crash on some systems)
+    startAudioStreamingFallback();
+  }
+}
+
+// Fallback using ScriptProcessorNode (deprecated, may cause issues)
+function startAudioStreamingFallback() {
+  if (audioStreamProcessor) return;
+  console.warn('[AUDIO] Using fallback ScriptProcessorNode (deprecated)');
+  
   audioStreamProcessor = audioContext.createScriptProcessor(4096, 1, 1);
   audioStreamProcessor.onaudioprocess = (e) => {
     if (!isTranscribing) return;
     
     const pcmFloat = e.inputBuffer.getChannelData(0);
-    // Convert float32 to int16 (PCM format for AWS Transcribe)
     const int16 = new Int16Array(pcmFloat.length);
     for (let i = 0; i < pcmFloat.length; i++) {
       int16[i] = Math.max(-32768, Math.min(32767, Math.floor(pcmFloat[i] * 32768)));
     }
-    // Send to main process as ArrayBuffer
     window.braindump.sendAudioChunk(int16.buffer);
   };
   
   microphone.connect(audioStreamProcessor);
-  // Connect to destination to keep the processor alive (required for ScriptProcessorNode)
   audioStreamProcessor.connect(audioContext.destination);
-  console.log('[AUDIO] Streaming started at', audioContext.sampleRate, 'Hz');
+  console.log('[AUDIO] Fallback streaming started at', audioContext.sampleRate, 'Hz');
 }
 
 function stopAudioStreaming() {
+  // Stop AudioWorklet
+  if (audioWorkletNode) {
+    audioWorkletNode.port.postMessage({ type: 'stop' });
+    audioWorkletNode.disconnect();
+    audioWorkletNode = null;
+    console.log('[AUDIO] AudioWorklet streaming stopped');
+  }
+  
+  // Stop fallback ScriptProcessorNode if active
   if (audioStreamProcessor) {
     audioStreamProcessor.disconnect();
     audioStreamProcessor = null;
-    console.log('[AUDIO] Streaming stopped');
+    console.log('[AUDIO] Fallback streaming stopped');
   }
 }
 
