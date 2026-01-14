@@ -18,6 +18,7 @@ const brainIcon = document.getElementById('brain-icon');
 const cardsStack = document.getElementById('cards-stack');
 const loadingBar = document.querySelector('.loading-bar');
 const expiredMessage = document.getElementById('expired-message');
+const processingContainer = document.getElementById('processing-container');
 
 // Timer state
 let timerPermanentlyPaused = false;
@@ -30,13 +31,6 @@ let audioStreamProcessor = null;  // Audio processor for streaming to main proce
 let audioWorkletNode = null;  // AudioWorklet node for modern audio processing
 let workletReady = false;  // Flag to track if worklet is registered
 let isTranscribing = false;
-
-// Debug: Keep mock data as fallback for testing
-const MOCK_TASKS = [
-  { type: 'Reminder', text: "Email Sarah tomorrow about the project update" },
-  { type: 'Calendar', text: "Meeting with Design Team at 2:00 PM" },
-  { type: 'Todo', text: "Research competitors for new feature" }
-];
 
 // Convert Bedrock nodes to UI task format
 function convertNodesToTasks(nodes) {
@@ -308,7 +302,7 @@ function createGhostTrail(card) {
 function approveCard(card, index) {
   if (!card || card.classList.contains('approved')) return;
   
-  const task = currentTasks[index] || MOCK_TASKS[index];
+  const task = currentTasks[index];
   console.log(`[APPROVED] Task ${index}: ${task?.text || 'unknown'}`);
   
   // TODO: Send approval to backend if needed
@@ -355,7 +349,7 @@ function approveCard(card, index) {
 function dismissCard(card, index) {
   if (!card || card.classList.contains('dismissed')) return;
   
-  const task = currentTasks[index] || MOCK_TASKS[index];
+  const task = currentTasks[index];
   console.log(`[DISMISSED] Task ${index}: ${task?.text || 'unknown'}`);
   
   // TODO: Send dismissal to backend if needed
@@ -425,8 +419,6 @@ cardsStack.addEventListener('dblclick', (e) => {
     if (!isNaN(index)) {
       if (currentTasks[index]) {
         currentTasks[index].text = newText;
-      } else if (MOCK_TASKS[index]) {
-        MOCK_TASKS[index].text = newText;
       }
       console.log(`[EDITED] Task ${index}: ${newText}`);
     }
@@ -583,27 +575,33 @@ function setState(newState, data = {}) {
       brainIcon.style.transform = 'scale(1)';
       brainContainer.classList.remove('hidden');
       cardsStack.classList.remove('visible');
+      processingContainer.classList.remove('visible');
       break;
       
     case State.LISTENING:
       brainContainer.classList.remove('hidden');
       cardsStack.classList.remove('visible');
+      processingContainer.classList.remove('visible');
       startAudioAnalysis();
       break;
       
     case State.PROCESSING:
       brainContainer.classList.add('hidden');
       brainIcon.style.transform = 'scale(1)';
+      processingContainer.classList.add('visible');
+      cardsStack.classList.remove('visible');
       break;
       
     case State.CONFIRMED:
       brainContainer.classList.add('hidden');
+      processingContainer.classList.remove('visible');
       cardsStack.classList.add('visible');
       break;
       
     case State.COMPLETING:
       // Terminal state after all tasks completed - brain stays hidden
       brainContainer.classList.add('hidden');
+      processingContainer.classList.remove('visible');
       cardsStack.classList.remove('visible');
       break;
   }
@@ -746,9 +744,10 @@ async function processAndShowAction() {
       currentTasks = tasks;
     }
   } else {
-    console.log('[TRANSCRIPT] No transcript, using mock data');
-    tasks = MOCK_TASKS;
-    currentTasks = [...MOCK_TASKS];
+    // No transcript captured - just hide the window
+    console.log('[TRANSCRIPT] No transcript captured, hiding window');
+    window.braindump.hideWindow();
+    return;
   }
   
   // Render and show cards
