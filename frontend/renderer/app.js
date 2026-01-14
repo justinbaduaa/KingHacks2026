@@ -23,12 +23,36 @@ const expiredMessage = document.getElementById('expired-message');
 let timerPermanentlyPaused = false;
 let expiredDismissTimeout = null;
 
-// Mock Data for Stacked UI
+// Backend integration
+let currentTasks = [];  // Real tasks from backend
+let transcriptBuffer = '';  // Buffer for collecting transcript
+let audioStreamProcessor = null;  // Audio processor for streaming to main process
+let isTranscribing = false;
+
+// Debug: Keep mock data as fallback for testing
 const MOCK_TASKS = [
   { type: 'Reminder', text: "Email Sarah tomorrow about the project update" },
   { type: 'Calendar', text: "Meeting with Design Team at 2:00 PM" },
   { type: 'Todo', text: "Research competitors for new feature" }
 ];
+
+// Convert Bedrock nodes to UI task format
+function convertNodesToTasks(nodes) {
+  if (!nodes || !Array.isArray(nodes)) return [];
+  return nodes.map(node => {
+    // Map node_type to display type
+    let displayType = node.node_type || 'note';
+    if (displayType === 'calendar_placeholder') displayType = 'calendar';
+    displayType = displayType.charAt(0).toUpperCase() + displayType.slice(1);
+    
+    return {
+      type: displayType,
+      text: node.title || node.body || 'Untitled',
+      nodeId: node.node_id,
+      fullNode: node
+    };
+  });
+}
 
 // Helper: Get icon SVG based on card type
 function getIconForType(type) {
@@ -278,11 +302,15 @@ function createGhostTrail(card) {
   setTimeout(() => ghost.remove(), 500);
 }
 
-// Approve a card (hardcoded action)
+// Approve a card (now with real task data)
 function approveCard(card, index) {
   if (!card || card.classList.contains('approved')) return;
   
-  console.log(`[APPROVED] Task ${index}: ${MOCK_TASKS[index].text}`);
+  const task = currentTasks[index] || MOCK_TASKS[index];
+  console.log(`[APPROVED] Task ${index}: ${task?.text || 'unknown'}`);
+  
+  // TODO: Send approval to backend if needed
+  // if (task?.nodeId) { window.braindump.approveNode(task.nodeId); }
   
   // Check if this is the last remaining card
   const remainingCards = cardsStack.querySelectorAll('.action-card:not(.approved):not(.dismissed)');
@@ -321,11 +349,15 @@ function approveCard(card, index) {
   }
 }
 
-// Dismiss a card
+// Dismiss a card (now with real task data)
 function dismissCard(card, index) {
   if (!card || card.classList.contains('dismissed')) return;
   
-  console.log(`[DISMISSED] Task ${index}: ${MOCK_TASKS[index].text}`);
+  const task = currentTasks[index] || MOCK_TASKS[index];
+  console.log(`[DISMISSED] Task ${index}: ${task?.text || 'unknown'}`);
+  
+  // TODO: Send dismissal to backend if needed
+  // if (task?.nodeId) { window.braindump.dismissNode(task.nodeId); }
   
   // Check if this is the last remaining card
   const remainingCards = cardsStack.querySelectorAll('.action-card:not(.approved):not(.dismissed)');
@@ -386,10 +418,14 @@ cardsStack.addEventListener('dblclick', (e) => {
     textEl.textContent = newText;
     card.classList.remove('editing');
     
-    // Update mock data
+    // Update current data
     const index = parseInt(card.dataset.index);
     if (!isNaN(index)) {
-      MOCK_TASKS[index].text = newText;
+      if (currentTasks[index]) {
+        currentTasks[index].text = newText;
+      } else if (MOCK_TASKS[index]) {
+        MOCK_TASKS[index].text = newText;
+      }
       console.log(`[EDITED] Task ${index}: ${newText}`);
     }
   };
@@ -661,12 +697,50 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 async function processAndShowAction() {
   // Brief processing moment
   setState(State.PROCESSING);
-  await sleep(300);
   
-  // Generate and render cards before showing
-  renderCards(MOCK_TASKS);
+  // Get the transcript we've collected
+  const transcript = transcriptBuffer.trim();
+  transcriptBuffer = '';
   
-  // Show the card stack
+  // Stop transcription
+  if (isTranscribing) {
+    await window.braindump.transcribeStop();
+    isTranscribing = false;
+    stopAudioStreaming();
+  }
+  
+  let tasks = [];
+  
+  if (transcript) {
+    console.log('[TRANSCRIPT] Collected:', transcript);
+    try {
+      // Send to Bedrock via backend
+      const result = await window.braindump.ingestTranscript(transcript, new Date().toISOString());
+      console.log('[INGEST] Result:', result);
+      
+      if (result.success && result.body?.nodes) {
+        tasks = convertNodesToTasks(result.body.nodes);
+        currentTasks = tasks;
+      } else {
+        console.warn('[INGEST] Failed or no nodes, using fallback');
+        // Fallback: create a note from the transcript
+        tasks = [{ type: 'Note', text: transcript }];
+        currentTasks = tasks;
+      }
+    } catch (err) {
+      console.error('[INGEST] Error:', err);
+      // Fallback: create a note from the transcript
+      tasks = [{ type: 'Note', text: transcript }];
+      currentTasks = tasks;
+    }
+  } else {
+    console.log('[TRANSCRIPT] No transcript, using mock data');
+    tasks = MOCK_TASKS;
+    currentTasks = [...MOCK_TASKS];
+  }
+  
+  // Render and show cards
+  renderCards(tasks);
   setState(State.CONFIRMED);
 }
 
@@ -685,10 +759,82 @@ window.braindump.onCheckKeys(() => {
   // Handled by blur event in main process as backup
 });
 
+// Handle transcript events from AWS Transcribe
+window.braindump.onTranscript((payload) => {
+  if (payload && !payload.partial && payload.text) {
+    transcriptBuffer += ' ' + payload.text;
+    console.log('[TRANSCRIPT] Partial:', payload.text);
+  }
+});
+
+window.braindump.onTranscribeReady(() => {
+  console.log('[TRANSCRIBE] Stream ready, starting audio capture');
+  startAudioStreaming();
+});
+
+window.braindump.onTranscribeError((err) => {
+  console.error('[TRANSCRIBE] Error:', err);
+  isTranscribing = false;
+  stopAudioStreaming();
+});
+
+window.braindump.onTranscribeEnded(() => {
+  console.log('[TRANSCRIBE] Session ended');
+  isTranscribing = false;
+  stopAudioStreaming();
+});
+
+// Start streaming audio to main process for transcription
+function startAudioStreaming() {
+  if (audioStreamProcessor) return;
+  if (!audioContext || !microphone) return;
+  
+  // Create a script processor to capture PCM audio
+  audioStreamProcessor = audioContext.createScriptProcessor(4096, 1, 1);
+  audioStreamProcessor.onaudioprocess = (e) => {
+    if (!isTranscribing) return;
+    
+    const pcmFloat = e.inputBuffer.getChannelData(0);
+    // Convert float32 to int16
+    const int16 = new Int16Array(pcmFloat.length);
+    for (let i = 0; i < pcmFloat.length; i++) {
+      int16[i] = Math.max(-32768, Math.min(32767, Math.floor(pcmFloat[i] * 32768)));
+    }
+    // Send to main process
+    window.braindump.sendAudioChunk(int16.buffer);
+  };
+  
+  microphone.connect(audioStreamProcessor);
+  audioStreamProcessor.connect(audioContext.destination);
+  console.log('[AUDIO] Streaming started');
+}
+
+function stopAudioStreaming() {
+  if (audioStreamProcessor) {
+    audioStreamProcessor.disconnect();
+    audioStreamProcessor = null;
+    console.log('[AUDIO] Streaming stopped');
+  }
+}
+
 // Start listening when window shows
-window.braindump.onStartListening(() => {
+window.braindump.onStartListening(async () => {
   keysHeld = true;
+  transcriptBuffer = '';
   setState(State.LISTENING);
+  
+  // Start transcription (audio streaming starts when ready event fires)
+  try {
+    const result = await window.braindump.transcribeStart();
+    if (result.started) {
+      isTranscribing = true;
+      console.log('[TRANSCRIBE] Started');
+    } else {
+      console.warn('[TRANSCRIBE] Failed to start:', result.error);
+    }
+  } catch (err) {
+    console.error('[TRANSCRIBE] Start error:', err);
+  }
 });
 
 // Stop listening and show action

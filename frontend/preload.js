@@ -1,19 +1,38 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('braindump', {
-  hideWindow: () => ipcRenderer.invoke('hide-window'), // hides the window and notifies renderer
-  simulateVoice: () => ipcRenderer.invoke('simulate-voice'), // simulates voice input
-  keysReleased: () => ipcRenderer.invoke('keys-released'), // notifies renderer that keys are released
-  openDashboard: () => ipcRenderer.invoke('open-dashboard'), // opens the dashboard window
+  hideWindow: () => ipcRenderer.invoke('hide-window'),
+  simulateVoice: () => ipcRenderer.invoke('simulate-voice'),
+  keysReleased: () => ipcRenderer.invoke('keys-released'),
+  openDashboard: () => ipcRenderer.invoke('open-dashboard'),
   
   // Dashboard window controls (for custom title bar)
   dashboardMinimize: () => ipcRenderer.invoke('dashboard-minimize'),
   dashboardMaximize: () => ipcRenderer.invoke('dashboard-maximize'),
   dashboardClose: () => ipcRenderer.invoke('dashboard-close'),
   
-  onStartListening: (callback) => ipcRenderer.on('start-listening', callback), // notifies renderer that the overlay is visible
-  onStopListening: (callback) => ipcRenderer.on('stop-listening', callback), // notifies renderer that the overlay is hidden
-  onCheckKeys: (callback) => ipcRenderer.on('check-keys', callback), // checks if keys are still held
+  // Backend integration - Transcription
+  transcribeStart: () => ipcRenderer.invoke('transcribe-start'),
+  transcribeStop: () => ipcRenderer.invoke('transcribe-stop'),
+  sendAudioChunk: (buffer) => ipcRenderer.invoke('audio-chunk', buffer),
+  
+  // Backend integration - Ingest
+  ingestTranscript: (text, timeIso) => ipcRenderer.invoke('ingest-transcript', text, timeIso),
+  
+  // Auth
+  authStatus: () => ipcRenderer.invoke('auth-status'),
+  authLogin: () => ipcRenderer.invoke('auth-login'),
+  
+  // Event listeners - Window
+  onStartListening: (callback) => ipcRenderer.on('start-listening', callback),
+  onStopListening: (callback) => ipcRenderer.on('stop-listening', callback),
+  onCheckKeys: (callback) => ipcRenderer.on('check-keys', callback),
   onWindowHidden: (callback) => ipcRenderer.on('window-hidden', callback),
+  
+  // Event listeners - Transcription
+  onTranscript: (callback) => ipcRenderer.on('transcribe-transcript', (_, payload) => callback(payload)),
+  onTranscribeEnded: (callback) => ipcRenderer.on('transcribe-ended', callback),
+  onTranscribeError: (callback) => ipcRenderer.on('transcribe-error', (_, err) => callback(err)),
+  onTranscribeReady: (callback) => ipcRenderer.on('transcribe-ready', callback),
 });
 

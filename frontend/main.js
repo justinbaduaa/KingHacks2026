@@ -9,11 +9,146 @@ const {
   nativeImage,
 } = require("electron");
 const path = require("path");
+const fs = require("fs");
+const https = require("https");
+const { execSync } = require("child_process");
+const { ensureValidTokens, loadConfig, loginInteractive } = require("./auth");
+const { createTranscribeSession } = require("./transcribe");
 
 let mainWindow = null;
 let dashboardWindow = null;
 let tray = null;
 let isShortcutHeld = false;
+
+// Transcription state
+const transcribeSession = createTranscribeSession();
+let streamReady = false;
+
+// Cache for API URL
+let cachedApiUrl = null;
+
+// Get CloudFormation stack output
+function getStackOutput(stackName, outputKey) {
+  try {
+    const result = execSync(
+      `aws cloudformation describe-stacks --stack-name ${stackName} --query "Stacks[0].Outputs[?OutputKey=='${outputKey}'].OutputValue" --output text`,
+      { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] }
+    );
+    const value = result.trim();
+    return value && value !== "None" ? value : null;
+  } catch (err) {
+    return null;
+  }
+}
+
+function getApiUrl() {
+  if (cachedApiUrl) {
+    return cachedApiUrl;
+  }
+  const stackName = "second-brain-backend-evan";
+  const url = getStackOutput(stackName, "ApiEndpoint");
+  if (url) {
+    cachedApiUrl = url.endsWith("/") ? url : url + "/";
+  }
+  return cachedApiUrl;
+}
+
+async function callApi(endpoint, method = "GET", body = null) {
+  const apiUrl = getApiUrl();
+  if (!apiUrl) {
+    throw new Error("Could not get API URL from stack");
+  }
+
+  const tokens = await ensureValidTokens();
+  if (!tokens || !tokens.id_token) {
+    throw new Error("Not authenticated. Please log in first.");
+  }
+
+  const fullUrl = apiUrl + endpoint;
+  const url = new URL(fullUrl);
+  const options = {
+    hostname: url.hostname,
+    path: url.pathname + url.search,
+    method,
+    headers: {
+      Authorization: `Bearer ${tokens.id_token}`,
+      "Content-Type": "application/json",
+    },
+  };
+
+  return new Promise((resolve, reject) => {
+    const req = https.request(options, (res) => {
+      let data = "";
+      res.on("data", (chunk) => {
+        data += chunk;
+      });
+      res.on("end", () => {
+        try {
+          const jsonData = JSON.parse(data);
+          resolve({
+            statusCode: res.statusCode,
+            body: jsonData,
+          });
+        } catch (err) {
+          resolve({
+            statusCode: res.statusCode,
+            body: data,
+          });
+        }
+      });
+    });
+
+    req.on("error", reject);
+
+    if (body) {
+      req.write(JSON.stringify(body));
+    }
+
+    req.end();
+  });
+}
+
+// Error handlers
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught exception in main process:", err);
+});
+
+process.on("unhandledRejection", (err) => {
+  console.error("Unhandled rejection in main process:", err);
+});
+
+// Transcribe session events
+transcribeSession.on("error", (err) => {
+  const message = err?.Message || err?.message || "Transcribe error";
+  const code = err?.name || err?.code || "error";
+  safeSend("transcribe-error", { message, code });
+});
+
+transcribeSession.on("ended", () => {
+  streamReady = false;
+  safeSend("transcribe-ended");
+});
+
+transcribeSession.on("transcript", (payload) => {
+  safeSend("transcribe-transcript", payload);
+});
+
+transcribeSession.on("ready", () => {
+  streamReady = true;
+  safeSend("transcribe-ready");
+});
+
+// Safe send helper
+function safeSend(channel, ...args) {
+  if (!mainWindow || mainWindow.isDestroyed()) return false;
+  if (!mainWindow.webContents || mainWindow.webContents.isDestroyed()) return false;
+  try {
+    mainWindow.webContents.send(channel, ...args);
+    return true;
+  } catch (err) {
+    return false;
+  }
+}
 
 // creates the overlay window with some special settings, like transparent and always on top, no taskbar
 function createWindow() { 
@@ -284,6 +419,58 @@ app.whenReady().then(() => {
   
   ipcMain.handle("dashboard-close", () => {
     if (dashboardWindow) dashboardWindow.close();
+  });
+
+  // Backend integration handlers
+  ipcMain.handle("auth-status", async () => {
+    const tokens = await ensureValidTokens().catch(() => null);
+    return { authenticated: Boolean(tokens) };
+  });
+
+  ipcMain.handle("auth-login", async () => {
+    const tokens = await loginInteractive();
+    return { authenticated: Boolean(tokens) };
+  });
+
+  ipcMain.handle("transcribe-start", async () => {
+    try {
+      streamReady = false;
+      const started = await transcribeSession.start();
+      return { started: Boolean(started) };
+    } catch (err) {
+      console.error("Failed to start transcription:", err);
+      return { started: false, error: err?.message || "start_failed" };
+    }
+  });
+
+  ipcMain.handle("transcribe-stop", async () => {
+    transcribeSession.stop();
+    streamReady = false;
+    return { stopped: true };
+  });
+
+  ipcMain.handle("audio-chunk", async (event, buffer) => {
+    if (streamReady && buffer) {
+      const chunk = Buffer.from(buffer);
+      transcribeSession.enqueue(chunk);
+    }
+  });
+
+  ipcMain.handle("ingest-transcript", async (event, transcript, userTimeIso) => {
+    try {
+      const body = {
+        transcript: transcript,
+        user_time_iso: userTimeIso || new Date().toISOString(),
+        user_id: "demo",
+        user_location: {
+          kind: "unknown",
+        },
+      };
+      const result = await callApi("ingest", "POST", body);
+      return { success: true, ...result };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
   });
 
   // Hide dock initially (macOS) - we'll show it when dashboard opens
