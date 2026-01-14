@@ -434,25 +434,33 @@ app.whenReady().then(() => {
 
   ipcMain.handle("transcribe-start", async () => {
     try {
+      console.log("[MAIN] transcribe-start called");
       streamReady = false;
       const started = await transcribeSession.start();
+      console.log("[MAIN] transcribe-start result:", started);
       return { started: Boolean(started) };
     } catch (err) {
-      console.error("Failed to start transcription:", err);
+      console.error("[MAIN] Failed to start transcription:", err);
       return { started: false, error: err?.message || "start_failed" };
     }
   });
 
   ipcMain.handle("transcribe-stop", async () => {
+    console.log("[MAIN] transcribe-stop called");
     transcribeSession.stop();
     streamReady = false;
     return { stopped: true };
   });
 
+  let audioChunkCount = 0;
   ipcMain.handle("audio-chunk", async (event, buffer) => {
     // Accept audio chunks immediately - transcribe session queues them internally
     // This allows audio to flow before AWS Transcribe fully accepts the stream
     if (buffer) {
+      audioChunkCount++;
+      if (audioChunkCount <= 3 || audioChunkCount % 50 === 0) {
+        console.log(`[MAIN] Audio chunk #${audioChunkCount}, size: ${buffer.byteLength} bytes`);
+      }
       const chunk = Buffer.from(buffer);
       transcribeSession.enqueue(chunk);
     }

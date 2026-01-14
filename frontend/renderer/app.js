@@ -626,7 +626,13 @@ async function startAudioAnalysis() {
     
     console.log('[AUDIO] Context created at sample rate:', audioContext.sampleRate);
     
-    // Start analyzing
+    // Now that audio context is ready, start streaming if transcription is active
+    if (isTranscribing) {
+      console.log('[AUDIO] Context ready, starting transcription stream');
+      startAudioStreaming();
+    }
+    
+    // Start analyzing for pulse ring visualization
     const dataArray = new Uint8Array(analyser.frequencyBinCount);
     
     function analyze() {
@@ -829,18 +835,15 @@ function stopAudioStreaming() {
 window.braindump.onStartListening(async () => {
   keysHeld = true;
   transcriptBuffer = '';
-  setState(State.LISTENING);
+  setState(State.LISTENING);  // This starts audio analysis which will start streaming when ready
   
-  // Start transcription
-  // IMPORTANT: Start audio streaming immediately after transcribeStart() - 
-  // AWS Transcribe needs audio data to flow before it accepts the stream
+  // Start transcription session (audio streaming starts from startAudioAnalysis after context is ready)
   try {
     const result = await window.braindump.transcribeStart();
     if (result.started) {
       isTranscribing = true;
-      console.log('[TRANSCRIBE] Started, beginning audio stream');
-      // Start audio streaming immediately - don't wait for ready event
-      startAudioStreaming();
+      console.log('[TRANSCRIBE] Session started, waiting for audio context...');
+      // Note: startAudioStreaming() is called from startAudioAnalysis() after audioContext is ready
     } else {
       console.warn('[TRANSCRIBE] Failed to start:', result.error);
     }
