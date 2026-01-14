@@ -14,7 +14,6 @@ from lib.time_normalize import (
     normalize_node_times
 )
 from lib.validate import validate_node, create_fallback_note
-from lib.dynamo import put_node_item
 from lib.ids import generate_node_id
 from lib.schemas import SCHEMA_VERSION
 
@@ -62,15 +61,6 @@ def build_user_payload(body: dict) -> dict:
         "captured_at_iso": captured_at_iso,
         "user_time_iso": user_time_iso,
         "user_location": user_location
-    }
-
-
-def build_raw_payload_subset(body: dict) -> dict:
-    """Build a small subset of the raw payload for storage."""
-    return {
-        "user_time_iso": body.get("user_time_iso"),
-        "user_location_kind": body.get("user_location", {}).get("kind", "unknown"),
-        "has_transcript_meta": bool(body.get("transcript_meta"))
     }
 
 
@@ -125,7 +115,6 @@ def handler(event, context):
     
     # Extract timezone offset for time normalization
     timezone_offset = parse_offset_from_user_time_iso(user_time_iso)
-    local_day = compute_local_day(user_time_iso)
     created_at_iso = utc_now_iso()
     
     # Build payload for Bedrock
@@ -183,20 +172,6 @@ def handler(event, context):
         node["global_warnings"] = list(set(existing_warnings + all_warnings))
         
         node_id = generate_node_id()
-        try:
-            put_node_item(
-                user_id=user_id,
-                local_day=local_day,
-                node_id=node_id,
-                raw_transcript=transcript,
-                raw_payload_subset=build_raw_payload_subset(body),
-                node_obj=node,
-                captured_at_iso=captured_at_iso,
-                created_at_iso=created_at_iso
-            )
-        except Exception as e:
-            logger.error(f"DynamoDB write failed: {str(e)}")
-            node["global_warnings"].append(f"Storage failed: {str(e)}")
         
         nodes.append(node)
         node_ids.append(node_id)
@@ -249,20 +224,6 @@ def handler(event, context):
             node["global_warnings"] = list(set(existing_warnings + all_warnings))
             
             node_id = generate_node_id()
-            try:
-                put_node_item(
-                    user_id=user_id,
-                    local_day=local_day,
-                    node_id=node_id,
-                    raw_transcript=transcript,
-                    raw_payload_subset=build_raw_payload_subset(body),
-                    node_obj=node,
-                    captured_at_iso=captured_at_iso,
-                    created_at_iso=created_at_iso
-                )
-            except Exception as e:
-                logger.error(f"DynamoDB write failed: {str(e)}")
-                node["global_warnings"].append(f"Storage failed: {str(e)}")
             
             nodes.append(node)
             node_ids.append(node_id)
