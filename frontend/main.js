@@ -450,7 +450,9 @@ app.whenReady().then(() => {
   });
 
   ipcMain.handle("audio-chunk", async (event, buffer) => {
-    if (streamReady && buffer) {
+    // Accept audio chunks immediately - transcribe session queues them internally
+    // This allows audio to flow before AWS Transcribe fully accepts the stream
+    if (buffer) {
       const chunk = Buffer.from(buffer);
       transcribeSession.enqueue(chunk);
     }

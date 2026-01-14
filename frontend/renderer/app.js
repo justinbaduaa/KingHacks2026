@@ -613,8 +613,9 @@ async function startAudioAnalysis() {
     // Get microphone access
     mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
     
-    // Create audio context and analyser
-    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    // Create audio context at 16000Hz to match AWS Transcribe
+    // Note: Some browsers may not support this and will use default sample rate
+    audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
     analyser = audioContext.createAnalyser();
     analyser.fftSize = 256;
     analyser.smoothingTimeConstant = 0.3;
@@ -622,6 +623,8 @@ async function startAudioAnalysis() {
     // Connect microphone to analyser
     microphone = audioContext.createMediaStreamSource(mediaStream);
     microphone.connect(analyser);
+    
+    console.log('[AUDIO] Context created at sample rate:', audioContext.sampleRate);
     
     // Start analyzing
     const dataArray = new Uint8Array(analyser.frequencyBinCount);
@@ -787,26 +790,31 @@ window.braindump.onTranscribeEnded(() => {
 // Start streaming audio to main process for transcription
 function startAudioStreaming() {
   if (audioStreamProcessor) return;
-  if (!audioContext || !microphone) return;
+  if (!audioContext || !microphone) {
+    console.warn('[AUDIO] Cannot start streaming - no audio context or microphone');
+    return;
+  }
   
   // Create a script processor to capture PCM audio
+  // Buffer size of 4096 at 16000Hz = 256ms chunks
   audioStreamProcessor = audioContext.createScriptProcessor(4096, 1, 1);
   audioStreamProcessor.onaudioprocess = (e) => {
     if (!isTranscribing) return;
     
     const pcmFloat = e.inputBuffer.getChannelData(0);
-    // Convert float32 to int16
+    // Convert float32 to int16 (PCM format for AWS Transcribe)
     const int16 = new Int16Array(pcmFloat.length);
     for (let i = 0; i < pcmFloat.length; i++) {
       int16[i] = Math.max(-32768, Math.min(32767, Math.floor(pcmFloat[i] * 32768)));
     }
-    // Send to main process
+    // Send to main process as ArrayBuffer
     window.braindump.sendAudioChunk(int16.buffer);
   };
   
   microphone.connect(audioStreamProcessor);
+  // Connect to destination to keep the processor alive (required for ScriptProcessorNode)
   audioStreamProcessor.connect(audioContext.destination);
-  console.log('[AUDIO] Streaming started');
+  console.log('[AUDIO] Streaming started at', audioContext.sampleRate, 'Hz');
 }
 
 function stopAudioStreaming() {
@@ -823,12 +831,16 @@ window.braindump.onStartListening(async () => {
   transcriptBuffer = '';
   setState(State.LISTENING);
   
-  // Start transcription (audio streaming starts when ready event fires)
+  // Start transcription
+  // IMPORTANT: Start audio streaming immediately after transcribeStart() - 
+  // AWS Transcribe needs audio data to flow before it accepts the stream
   try {
     const result = await window.braindump.transcribeStart();
     if (result.started) {
       isTranscribing = true;
-      console.log('[TRANSCRIBE] Started');
+      console.log('[TRANSCRIBE] Started, beginning audio stream');
+      // Start audio streaming immediately - don't wait for ready event
+      startAudioStreaming();
     } else {
       console.warn('[TRANSCRIBE] Failed to start:', result.error);
     }
