@@ -466,6 +466,14 @@ app.whenReady().then(() => {
     }
   });
 
+  ipcMain.handle("transcribe-finish", async () => {
+    console.log("[MAIN] transcribe-finish called");
+    transcribeSession.finish();
+    streamReady = false;
+    // We don't return anything specific, expecting the 'ended' event to fire eventually
+    return { finishing: true };
+  });
+
   ipcMain.handle("ingest-transcript", async (event, transcript, userTimeIso) => {
     try {
       const body = {

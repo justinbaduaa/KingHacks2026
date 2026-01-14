@@ -189,6 +189,18 @@ class TranscribeSession extends EventEmitter {
     }
     this._markEnded();
   }
+
+  finish() {
+    if (!this.active) {
+      return;
+    }
+    // Set active false to stop the loop condition
+    this.active = false;
+    // Wake up any pending _nextChunk() waiters with null so they exit
+    this._clearWaiters();
+    // Do NOT abort. Let the stream generator finish naturally,
+    // which allows the AWS SDK to send any buffered transcripts.
+  }
 }
 
 function createTranscribeSession() {

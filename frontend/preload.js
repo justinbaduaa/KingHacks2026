@@ -13,7 +13,9 @@ contextBridge.exposeInMainWorld('braindump', {
   
   // Backend integration - Transcription
   transcribeStart: () => ipcRenderer.invoke('transcribe-start'),
+  transcribeStart: () => ipcRenderer.invoke('transcribe-start'),
   transcribeStop: () => ipcRenderer.invoke('transcribe-stop'),
+  transcribeFinish: () => ipcRenderer.invoke('transcribe-finish'),
   sendAudioChunk: (buffer) => ipcRenderer.invoke('audio-chunk', buffer),
   
   // Backend integration - Ingest

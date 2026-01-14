@@ -711,13 +711,48 @@ async function processAndShowAction() {
   brainContainer.classList.add('hidden');
   processingContainer.classList.add('visible');
 
-  // Wait a moment to capture the tail of the sentence
+  // Wait a moment to capture the tail of the sentence (Shadow Listening)
+  // This is crucial because users often release the key slightly before they finish speaking.
   console.log('[AUDIO] Capturing tail (800ms shadow listening)...');
-  await sleep(1000);
+  await sleep(800);
 
-  // Brief processing moment (effectively finalizes the state and stops audio)
+  // Brief processing moment
   setState(State.PROCESSING);
   
+  // Stop transcription gracefully
+  if (isTranscribing) {
+    // 1. Tell backend to finish the stream (sends end-of-stream to AWS)
+    await window.braindump.transcribeFinish();
+    isTranscribing = false;
+    stopAudioStreaming();
+    
+    // 2. Wait for the final 'transcribe-ended' event which confirms AWS is done
+    // We wrap this in a promise with a timeout just in case
+    console.log('[TRANSCRIBE] Waiting for final transcript...');
+    await new Promise((resolve) => {
+      let resolved = false;
+      const onEnded = () => {
+        if (!resolved) {
+          resolved = true;
+          console.log('[TRANSCRIBE] Final ended event received');
+          resolve(); 
+        }
+      };
+      
+      // One-time listener
+      window.braindump.onTranscribeEnded(onEnded);
+      
+      // Safety timeout (e.g. 2s) so we don't hang forever if network dies
+      setTimeout(() => {
+        if (!resolved) {
+          console.warn('[TRANSCRIBE] Timed out waiting for end event');
+          resolved = true;
+          resolve();
+        }
+      }, 2000);
+    });
+  }
+
   // Get the transcript we've collected (including any last partial that wasn't finalized)
   let transcript = transcriptBuffer.trim();
   if (lastPartialTranscript) {
@@ -726,13 +761,6 @@ async function processAndShowAction() {
   }
   transcriptBuffer = '';
   lastPartialTranscript = '';
-  
-  // Stop transcription
-  if (isTranscribing) {
-    await window.braindump.transcribeStop();
-    isTranscribing = false;
-    stopAudioStreaming();
-  }
   
   let tasks = [];
   
