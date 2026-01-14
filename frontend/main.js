@@ -6,6 +6,9 @@ const {
   screen,
 } = require("electron");
 const path = require("path");
+const fs = require("fs");
+const https = require("https");
+const { execSync } = require("child_process");
 const record = require("node-record-lpcm16");
 const { ensureValidTokens, loadConfig, loginInteractive } = require("./auth");
 const { createTranscribeSession } = require("./transcribe");
@@ -18,6 +21,89 @@ let recordingActive = false;
 let keyPollInterval = null;
 let windowReady = false;
 let pendingStartListening = false;
+
+// Cache for API URL
+let cachedApiUrl = null;
+
+function getStackOutput(stackName, outputKey) {
+  try {
+    const result = execSync(
+      `aws cloudformation describe-stacks --stack-name ${stackName} --query "Stacks[0].Outputs[?OutputKey=='${outputKey}'].OutputValue" --output text`,
+      { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] }
+    );
+    const value = result.trim();
+    return value && value !== "None" ? value : null;
+  } catch (err) {
+    return null;
+  }
+}
+
+function getApiUrl() {
+  if (cachedApiUrl) {
+    return cachedApiUrl;
+  }
+  const stackName = "second-brain-backend-evan";
+  const url = getStackOutput(stackName, "ApiEndpoint");
+  if (url) {
+    cachedApiUrl = url.endsWith("/") ? url : url + "/";
+  }
+  return cachedApiUrl;
+}
+
+async function callApi(endpoint, method = "GET", body = null) {
+  const apiUrl = getApiUrl();
+  if (!apiUrl) {
+    throw new Error("Could not get API URL from stack");
+  }
+
+  const tokens = await ensureValidTokens();
+  if (!tokens || !tokens.id_token) {
+    throw new Error("Not authenticated. Please log in first.");
+  }
+
+  const fullUrl = apiUrl + endpoint;
+  const url = new URL(fullUrl);
+  const options = {
+    hostname: url.hostname,
+    path: url.pathname + url.search,
+    method,
+    headers: {
+      Authorization: `Bearer ${tokens.id_token}`,
+      "Content-Type": "application/json",
+    },
+  };
+
+  return new Promise((resolve, reject) => {
+    const req = https.request(options, (res) => {
+      let data = "";
+      res.on("data", (chunk) => {
+        data += chunk;
+      });
+      res.on("end", () => {
+        try {
+          const jsonData = JSON.parse(data);
+          resolve({
+            statusCode: res.statusCode,
+            body: jsonData,
+          });
+        } catch (err) {
+          resolve({
+            statusCode: res.statusCode,
+            body: data,
+          });
+        }
+      });
+    });
+
+    req.on("error", reject);
+
+    if (body) {
+      req.write(JSON.stringify(body));
+    }
+
+    req.end();
+  });
+}
 
 process.on("uncaughtException", (err) => {
   console.error("Uncaught exception in main process:", err);
@@ -60,7 +146,7 @@ function createWindow() {
     height: windowHeight,
     x: Math.round((screenWidth - windowWidth) / 2),
     y: screenHeight - windowHeight - 5,
-    type: 'panel',
+    type: "panel",
     frame: false,
     transparent: true,
     alwaysOnTop: true,
@@ -73,7 +159,7 @@ function createWindow() {
     show: false,
     hasShadow: false,
     excludedFromShownWindowsMenu: true,
-    backgroundColor: '#00000000',
+    backgroundColor: "#00000000",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -134,7 +220,6 @@ function createWindow() {
   });
 }
 
-
 // shwos the overlay at the bottom centre of the current screen (semi-works with multidisplays)
 function showWindow() {
   if (!mainWindow || mainWindow.isDestroyed()) {
@@ -146,22 +231,22 @@ function showWindow() {
     const currentDisplay = screen.getDisplayNearestPoint(cursorPoint);
     const { width: screenWidth, height: screenHeight } = currentDisplay.workAreaSize;
     const { x: screenX, y: screenY } = currentDisplay.workArea;
-    
+
     const windowWidth = 400;
     const windowHeight = 450;
-    
+
     // Calculate position at bottom center of the current screen
     const newX = Math.round(screenX + (screenWidth - windowWidth) / 2);
     const newY = screenY + screenHeight - windowHeight - 5;
-    
+
     // Use setBounds for more reliable multi-monitor positioning
     mainWindow.setBounds({
       x: newX,
       y: newY,
       width: windowWidth,
-      height: windowHeight
+      height: windowHeight,
     });
-    
+
     // Ensure window is visible on all workspaces (helps with multi-monitor)
     mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 
@@ -233,6 +318,21 @@ function stopKeyPoll() {
 }
 
 app.whenReady().then(() => {
+  // Handle command-line flags
+  if (process.argv.includes("--clear-auth") || process.argv.includes("--logout")) {
+    const { app: electronApp } = require("electron");
+    const authPath = path.join(electronApp.getPath("userData"), "auth.json");
+    if (fs.existsSync(authPath)) {
+      fs.unlinkSync(authPath);
+      console.log("Authentication tokens cleared!");
+      console.log(`Deleted: ${authPath}`);
+    } else {
+      console.log("No saved tokens found.");
+    }
+    app.quit();
+    return;
+  }
+
   if (process.env.PRINT_TOKEN === "1") {
     (async () => {
       const tokens = await ensureValidTokens().catch(() => null);
@@ -241,6 +341,30 @@ app.whenReady().then(() => {
         console.error("No access token available.");
       } else {
         console.log(result.id_token);
+      }
+      app.quit();
+    })();
+    return;
+  }
+
+  if (process.argv.includes("--force-login")) {
+    (async () => {
+      console.log("Forcing new login...");
+      // Clear existing tokens first
+      const { app: electronApp } = require("electron");
+      const authPath = path.join(electronApp.getPath("userData"), "auth.json");
+      if (fs.existsSync(authPath)) {
+        fs.unlinkSync(authPath);
+      }
+      // Start login flow
+      const tokens = await loginInteractive().catch((err) => {
+        console.error("Login failed:", err);
+        return null;
+      });
+      if (tokens) {
+        console.log("Login successful!");
+        console.log(`Access token: ${tokens.access_token.substring(0, 30)}...`);
+        console.log(`ID token: ${tokens.id_token.substring(0, 30)}...`);
       }
       app.quit();
     })();
@@ -263,7 +387,6 @@ app.whenReady().then(() => {
       showWindow();
     }
   });
-
 
   if (process.platform === "darwin") {
     app.dock.hide();
@@ -329,6 +452,49 @@ function registerIpcHandlers() {
     return { authenticated: Boolean(tokens) };
   });
 
+  ipcMain.handle("ingest-transcript", async (event, transcript, userTimeIso) => {
+    try {
+      const body = {
+        transcript: transcript,
+        user_time_iso: userTimeIso || new Date().toISOString(),
+        user_id: "demo",
+        user_location: {
+          kind: "unknown",
+        },
+      };
+      const result = await callApi("ingest", "POST", body);
+      return { success: true, ...result };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle("test-whoami", async () => {
+    try {
+      const result = await callApi("whoami", "GET");
+      return { success: true, ...result };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle("test-ingest", async (event, transcript) => {
+    try {
+      const body = {
+        transcript: transcript,
+        user_time_iso: new Date().toISOString(),
+        user_id: "demo",
+        user_location: {
+          kind: "unknown",
+        },
+      };
+      const result = await callApi("ingest", "POST", body);
+      return { success: true, ...result };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
   ipcMain.handle("transcribe-start", async () => {
     try {
       const started = await startNodeTranscription();
@@ -343,7 +509,6 @@ function registerIpcHandlers() {
     await stopNodeTranscription();
     return { stopped: true };
   });
-
 }
 
 function mapRecorderError(err) {

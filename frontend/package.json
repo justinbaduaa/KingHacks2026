@@ -7,6 +7,8 @@
     "start": "electron .",
     "dev": "electron . --enable-logging",
     "token": "PRINT_TOKEN=1 electron .",
+    "logout": "electron . --clear-auth",
+    "force-login": "electron . --force-login",
     "record-min": "ELECTRON_ENABLE_LOGGING=1 electron recording_min/main.js",
     "record-node": "node recording_min/node_record.js",
     "record-node-transcribe": "node recording_min/node_transcribe.js"

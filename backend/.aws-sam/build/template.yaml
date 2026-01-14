@@ -81,7 +81,6 @@ Resources:
       - email
       AutoVerifiedAttributes:
       - email
-      MfaConfiguration: 'OFF'
       Policies:
         PasswordPolicy:
           MinimumLength: 8
@@ -195,6 +194,22 @@ Resources:
     Properties:
       CodeUri: IngestFunction
       Handler: handlers.ingest.handler
+      Timeout: 30
+      MemorySize: 512
+      Environment:
+        Variables:
+          BEDROCK_MODEL_ID: arn:aws:bedrock:us-east-1:244271315858:inference-profile/us.anthropic.claude-haiku-4-5-20251001-v1:0
+      Policies:
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: DynamoDBTable
+      - Statement:
+        - Effect: Allow
+          Action:
+          - bedrock:InvokeModel
+          - bedrock:Converse
+          - bedrock:ConverseStream
+          Resource: '*'
       Events:
         Api:
           Type: Api

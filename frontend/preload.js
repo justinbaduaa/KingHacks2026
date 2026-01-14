@@ -12,7 +12,12 @@ contextBridge.exposeInMainWorld('braindump', {
   authLogin: () => ipcRenderer.invoke('auth-login'),
   startTranscription: () => ipcRenderer.invoke('transcribe-start'),
   stopTranscription: () => ipcRenderer.invoke('transcribe-stop'),
+  sendAudioChunk: (chunk) => ipcRenderer.send('transcribe-audio', chunk),
   onTranscribeTranscript: (callback) => ipcRenderer.on('transcribe-transcript', callback),
   onTranscribeEnded: (callback) => ipcRenderer.on('transcribe-ended', callback),
   onTranscribeError: (callback) => ipcRenderer.on('transcribe-error', callback),
+  ingestTranscript: (transcript, userTimeIso) =>
+    ipcRenderer.invoke('ingest-transcript', transcript, userTimeIso),
+  testWhoami: () => ipcRenderer.invoke('test-whoami'),
+  testIngest: (transcript) => ipcRenderer.invoke('test-ingest', transcript),
 });

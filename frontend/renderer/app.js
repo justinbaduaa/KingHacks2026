@@ -15,6 +15,10 @@ const brainIcon = document.getElementById('brain-icon');
 const cardsStack = document.getElementById('cards-stack');
 const loadingBar = document.querySelector('.loading-bar');
 const expiredMessage = document.getElementById('expired-message');
+const testApiBtn = document.getElementById('test-api-btn');
+const testResults = document.getElementById('test-results');
+const testResultsContent = document.getElementById('test-results-content');
+const testResultsClose = document.getElementById('test-results-close');
 
 // Timer state
 let timerPermanentlyPaused = false;
@@ -575,6 +579,18 @@ async function processAndShowAction() {
   // Brief processing moment
   setState(State.PROCESSING);
   await sleep(300);
+
+  let tasks = MOCK_TASKS;
+
+  try {
+    await ensureAuthenticated();
+    const apiTasks = await fetchMockTasksFromApi();
+    if (apiTasks && apiTasks.length > 0) {
+      tasks = apiTasks;
+    }
+  } catch (err) {
+    console.warn('Failed to fetch ingest tasks, using mock tasks:', err);
+  }
   
   // Generate and render single transcript card
   renderCards(buildTranscriptTask());

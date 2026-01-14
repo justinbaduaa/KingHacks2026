@@ -1,3 +1,4 @@
 node_modules/
+.aws-sam/
 /GEMINI.md
 backend/.aws-sam/
