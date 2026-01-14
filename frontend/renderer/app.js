@@ -4,8 +4,12 @@ const State = { IDLE: 'idle', LISTENING: 'listening', PROCESSING: 'processing', 
 let currentState = State.IDLE;
 let keysHeld = false;
 let transcriptionActive = false;
+let transcriptionStopping = false;
 let transcriptFinals = [];
 let transcriptPartial = "";
+let transcriptEndResolver = null;
+let receivedFinal = false;
+let lastTranscriptAt = 0;
 
 
 // Elements
@@ -37,6 +41,7 @@ function startTranscriptionStream() {
   if (transcriptionActive || !window.braindump?.startTranscription) {
     return;
   }
+  transcriptionStopping = false;
   window.braindump
     .startTranscription()
     .then((result) => {
@@ -56,9 +61,37 @@ function stopTranscriptionStream() {
   if (!transcriptionActive || !window.braindump?.stopTranscription) {
     return;
   }
-  transcriptionActive = false;
+  transcriptionStopping = true;
   window.braindump.stopTranscription().catch((err) => {
     console.error("Failed to stop transcription:", err);
+  });
+}
+
+function waitForTranscriptionEnd() {
+  if (!transcriptionActive && !transcriptionStopping) {
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    transcriptEndResolver = () => {
+      transcriptEndResolver = null;
+      if (receivedFinal) {
+        resolve();
+        return;
+      }
+      const graceMs = 600;
+      const check = () => {
+        if (receivedFinal) {
+          resolve();
+          return;
+        }
+        if (Date.now() - lastTranscriptAt >= graceMs) {
+          resolve();
+          return;
+        }
+        setTimeout(check, 100);
+      };
+      check();
+    };
   });
 }
 
@@ -311,7 +344,8 @@ function createGhostTrail(card) {
 function approveCard(card, index) {
   if (!card || card.classList.contains('approved')) return;
   
-  console.log(`[APPROVED] Task ${index}: ${MOCK_TASKS[index].text}`);
+  const text = card.querySelector('.action-text')?.textContent || '';
+  console.log(`[APPROVED] Task ${index}: ${text}`);
   
   // Check if this is the last remaining card
   const remainingCards = cardsStack.querySelectorAll('.action-card:not(.approved):not(.dismissed)');
@@ -354,7 +388,8 @@ function approveCard(card, index) {
 function dismissCard(card, index) {
   if (!card || card.classList.contains('dismissed')) return;
   
-  console.log(`[DISMISSED] Task ${index}: ${MOCK_TASKS[index].text}`);
+  const text = card.querySelector('.action-text')?.textContent || '';
+  console.log(`[DISMISSED] Task ${index}: ${text}`);
   
   // Check if this is the last remaining card
   const remainingCards = cardsStack.querySelectorAll('.action-card:not(.approved):not(.dismissed)');
@@ -418,7 +453,9 @@ cardsStack.addEventListener('dblclick', (e) => {
     // Update mock data
     const index = parseInt(card.dataset.index);
     if (!isNaN(index)) {
-      MOCK_TASKS[index].text = newText;
+      if (card.querySelector('.action-text')) {
+        card.querySelector('.action-text').textContent = newText;
+      }
       console.log(`[EDITED] Task ${index}: ${newText}`);
     }
   };
@@ -580,18 +617,6 @@ async function processAndShowAction() {
   setState(State.PROCESSING);
   await sleep(300);
 
-  let tasks = MOCK_TASKS;
-
-  try {
-    await ensureAuthenticated();
-    const apiTasks = await fetchMockTasksFromApi();
-    if (apiTasks && apiTasks.length > 0) {
-      tasks = apiTasks;
-    }
-  } catch (err) {
-    console.warn('Failed to fetch ingest tasks, using mock tasks:', err);
-  }
-  
   // Generate and render single transcript card
   renderCards(buildTranscriptTask());
   
@@ -620,6 +645,8 @@ window.braindump.onStartListening(() => {
   setState(State.LISTENING);
   transcriptFinals = [];
   transcriptPartial = "";
+  receivedFinal = false;
+  lastTranscriptAt = 0;
   ensureAuthenticated()
     .then(() => startTranscriptionStream())
     .catch((err) => {
@@ -631,7 +658,7 @@ window.braindump.onStartListening(() => {
 window.braindump.onStopListening(() => {
   stopTranscriptionStream();
   if (currentState === State.LISTENING) {
-    processAndShowAction();
+    waitForTranscriptionEnd().then(() => processAndShowAction());
   }
 });
 
@@ -652,24 +679,34 @@ window.braindump.onTranscribeTranscript?.((event, payload) => {
   if (!payload?.text) {
     return;
   }
+  lastTranscriptAt = Date.now();
   if (payload.partial) {
     transcriptPartial = payload.text;
     console.log(`[partial] ${payload.text}`);
   } else {
     transcriptFinals.push(payload.text);
     transcriptPartial = "";
+    receivedFinal = true;
     console.log(`[final] ${payload.text}`);
   }
 });
 
 window.braindump.onTranscribeEnded?.(() => {
   transcriptionActive = false;
+  transcriptionStopping = false;
   console.warn("Transcribe stream ended.");
+  if (transcriptEndResolver) {
+    transcriptEndResolver();
+  }
 });
 
 window.braindump.onTranscribeError?.((event, payload) => {
   transcriptionActive = false;
+  transcriptionStopping = false;
   console.error("Transcribe stream error:", payload);
+  if (transcriptEndResolver) {
+    transcriptEndResolver();
+  }
 });
 
 

@@ -1,10 +1,10 @@
 {
-  "domain": "kinghacks2026-evan.auth.us-east-1.amazoncognito.com",
-  "clientId": "1mvkkrd2mrmio5m8egu4i0urtr",
+  "domain": "kinghacks2026.auth.us-east-1.amazoncognito.com",
+  "clientId": "138cgajh062dr3fmgg6ln9ahg6",
   "redirectUri": "http://127.0.0.1:4387/callback",
   "scopes": ["openid", "email", "profile"],
   "region": "us-east-1",
-  "identityPoolId": "us-east-1:b05f5ee8-fda8-43a4-8d31-a8f036946eb4",
+  "identityPoolId": "us-east-1:0a899abd-019e-463e-9dfd-869231dd8e85",
   "transcribeLanguageCode": "en-US",
   "transcribeSampleRate": 16000
 }
