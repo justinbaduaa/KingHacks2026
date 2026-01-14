@@ -21,7 +21,7 @@ from lib.schemas import SCHEMA_VERSION
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-DEFAULT_MODEL_ID = "anthropic.claude-3-haiku-20240307-v1:0"
+DEFAULT_MODEL_ID = "arn:aws:bedrock:us-east-1:244271315858:inference-profile/us.anthropic.claude-haiku-4-5-20251001-v1:0"
 
 
 def parse_request_body(event: dict) -> tuple[dict | None, str | None]:
@@ -135,97 +135,156 @@ def handler(event, context):
     model_id = os.environ.get("BEDROCK_MODEL_ID", DEFAULT_MODEL_ID)
     
     # Call Bedrock
-    tool_name = None
-    tool_input = None
+    tool_uses = []
     latency_ms = 0
-    fallback_used = False
-    all_warnings = []
+    error_warnings = []
     
     try:
-        tool_name, tool_input, raw_response, latency_ms = call_converse(model_id, user_payload)
-        
-        if not tool_name or not tool_input:
-            # No tool call - create fallback
-            logger.warning("Bedrock returned no tool call")
-            all_warnings.append("Model did not return a tool call - using fallback")
-            node = create_fallback_note(
-                title="Captured Note",
-                body=transcript,
-                warnings=all_warnings
-            )
-            fallback_used = True
-        else:
-            node = tool_input
-            
+        tool_uses, raw_response, latency_ms = call_converse(model_id, user_payload)
     except Exception as e:
         logger.error(f"Bedrock call failed: {str(e)}")
-        all_warnings.append(f"Bedrock call failed: {str(e)}")
+        error_warnings.append(f"Bedrock call failed: {str(e)}")
+        tool_uses = []
+        latency_ms = 0
+    
+    nodes = []
+    node_ids = []
+    
+    if not tool_uses:
+        # No tool call - create fallback node
+        logger.warning("Bedrock returned no tool call")
+        all_warnings = ["Model did not return a tool call - using fallback"] + error_warnings
         node = create_fallback_note(
             title="Captured Note",
             body=transcript,
             warnings=all_warnings
         )
         fallback_used = True
-        latency_ms = 0
-    
-    # Normalize times in the node
-    node, time_warnings = normalize_node_times(node, timezone_offset)
-    all_warnings.extend(time_warnings)
-    
-    # Validate the node
-    node, validation_warnings, validation_fallback = validate_node(node, transcript)
-    all_warnings.extend(validation_warnings)
-    fallback_used = fallback_used or validation_fallback
-    
-    # Finalize with server-side fields
-    node = finalize_node(
-        node=node,
-        captured_at_iso=captured_at_iso,
-        created_at_iso=created_at_iso,
-        timezone_offset=timezone_offset,
-        model_id=model_id,
-        latency_ms=latency_ms,
-        tool_name=tool_name,
-        fallback_used=fallback_used
-    )
-    
-    # Merge all warnings
-    existing_warnings = node.get("global_warnings", [])
-    node["global_warnings"] = list(set(existing_warnings + all_warnings))
-    
-    # Generate node ID
-    node_id = generate_node_id()
-    
-    # Store in DynamoDB
-    try:
-        put_node_item(
-            user_id=user_id,
-            local_day=local_day,
-            node_id=node_id,
-            raw_transcript=transcript,
-            raw_payload_subset=build_raw_payload_subset(body),
-            node_obj=node,
+        tool_name = None
+        
+        node, time_warnings = normalize_node_times(node, timezone_offset)
+        all_warnings.extend(time_warnings)
+        node, validation_warnings, validation_fallback = validate_node(node, transcript)
+        all_warnings.extend(validation_warnings)
+        fallback_used = fallback_used or validation_fallback
+        
+        node = finalize_node(
+            node=node,
             captured_at_iso=captured_at_iso,
-            created_at_iso=created_at_iso
+            created_at_iso=created_at_iso,
+            timezone_offset=timezone_offset,
+            model_id=model_id,
+            latency_ms=latency_ms,
+            tool_name=tool_name,
+            fallback_used=fallback_used
         )
-    except Exception as e:
-        logger.error(f"DynamoDB write failed: {str(e)}")
-        # Still return the node even if storage fails
-        node["global_warnings"].append(f"Storage failed: {str(e)}")
+        
+        existing_warnings = node.get("global_warnings", [])
+        node["global_warnings"] = list(set(existing_warnings + all_warnings))
+        
+        node_id = generate_node_id()
+        try:
+            put_node_item(
+                user_id=user_id,
+                local_day=local_day,
+                node_id=node_id,
+                raw_transcript=transcript,
+                raw_payload_subset=build_raw_payload_subset(body),
+                node_obj=node,
+                captured_at_iso=captured_at_iso,
+                created_at_iso=created_at_iso
+            )
+        except Exception as e:
+            logger.error(f"DynamoDB write failed: {str(e)}")
+            node["global_warnings"].append(f"Storage failed: {str(e)}")
+        
+        nodes.append(node)
+        node_ids.append(node_id)
+        
+        logger.info(json.dumps({
+            "action": "ingest_complete",
+            "node_id": node_id,
+            "node_type": node.get("node_type"),
+            "tool_used": tool_name,
+            "latency_ms": latency_ms,
+            "fallback_used": fallback_used,
+            "user_id": user_id
+        }))
+    else:
+        for tool_use in tool_uses:
+            tool_name = tool_use.get("name")
+            tool_input = tool_use.get("input")
+            all_warnings = list(error_warnings)
+            fallback_used = False
+            
+            if not tool_input:
+                all_warnings.append("Model did not return a tool input - using fallback")
+                node = create_fallback_note(
+                    title="Captured Note",
+                    body=transcript,
+                    warnings=all_warnings
+                )
+                fallback_used = True
+            else:
+                node = tool_input
+            
+            node, time_warnings = normalize_node_times(node, timezone_offset)
+            all_warnings.extend(time_warnings)
+            node, validation_warnings, validation_fallback = validate_node(node, transcript)
+            all_warnings.extend(validation_warnings)
+            fallback_used = fallback_used or validation_fallback
+            
+            node = finalize_node(
+                node=node,
+                captured_at_iso=captured_at_iso,
+                created_at_iso=created_at_iso,
+                timezone_offset=timezone_offset,
+                model_id=model_id,
+                latency_ms=latency_ms,
+                tool_name=tool_name,
+                fallback_used=fallback_used
+            )
+            
+            existing_warnings = node.get("global_warnings", [])
+            node["global_warnings"] = list(set(existing_warnings + all_warnings))
+            
+            node_id = generate_node_id()
+            try:
+                put_node_item(
+                    user_id=user_id,
+                    local_day=local_day,
+                    node_id=node_id,
+                    raw_transcript=transcript,
+                    raw_payload_subset=build_raw_payload_subset(body),
+                    node_obj=node,
+                    captured_at_iso=captured_at_iso,
+                    created_at_iso=created_at_iso
+                )
+            except Exception as e:
+                logger.error(f"DynamoDB write failed: {str(e)}")
+                node["global_warnings"].append(f"Storage failed: {str(e)}")
+            
+            nodes.append(node)
+            node_ids.append(node_id)
+            
+            logger.info(json.dumps({
+                "action": "ingest_complete",
+                "node_id": node_id,
+                "node_type": node.get("node_type"),
+                "tool_used": tool_name,
+                "latency_ms": latency_ms,
+                "fallback_used": fallback_used,
+                "user_id": user_id
+            }))
     
-    # Log summary
-    logger.info(json.dumps({
-        "action": "ingest_complete",
-        "node_id": node_id,
-        "node_type": node.get("node_type"),
-        "tool_used": tool_name,
-        "latency_ms": latency_ms,
-        "fallback_used": fallback_used,
-        "user_id": user_id
-    }))
-    
-    return api_response(200, {
+    response_body = {
         "ok": True,
-        "node_id": node_id,
-        "node": node
-    })
+        "node_ids": node_ids,
+        "nodes": nodes
+    }
+    
+    if len(nodes) == 1:
+        response_body["node_id"] = node_ids[0]
+        response_body["node"] = nodes[0]
+    
+    return api_response(200, response_body)

@@ -93,6 +93,11 @@ TOOL_BASE_PROPERTIES = {
 
 REMINDER_TOOL_PROPERTIES = {
     **TOOL_BASE_PROPERTIES,
+    "node_type": {
+        "type": "string",
+        "const": "reminder",
+        "description": "Must be 'reminder' for this tool"
+    },
     "reminder": {
         "type": "object",
         "properties": {
@@ -129,6 +134,11 @@ REMINDER_TOOL_PROPERTIES = {
 
 TODO_TOOL_PROPERTIES = {
     **TOOL_BASE_PROPERTIES,
+    "node_type": {
+        "type": "string",
+        "const": "todo",
+        "description": "Must be 'todo' for this tool"
+    },
     "todo": {
         "type": "object",
         "properties": {
@@ -159,6 +169,11 @@ TODO_TOOL_PROPERTIES = {
 
 NOTE_TOOL_PROPERTIES = {
     **TOOL_BASE_PROPERTIES,
+    "node_type": {
+        "type": "string",
+        "const": "note",
+        "description": "Must be 'note' for this tool"
+    },
     "note": {
         "type": "object",
         "properties": {
@@ -173,6 +188,11 @@ NOTE_TOOL_PROPERTIES = {
 
 CALENDAR_TOOL_PROPERTIES = {
     **TOOL_BASE_PROPERTIES,
+    "node_type": {
+        "type": "string",
+        "const": "calendar_placeholder",
+        "description": "Must be 'calendar_placeholder' for this tool"
+    },
     "calendar_placeholder": {
         "type": "object",
         "properties": {
@@ -262,22 +282,23 @@ def build_tools():
     ]
 
 
-SYSTEM_PROMPT = '''You are Second-Brain, an AI that converts messy voice transcripts into ONE structured node.
+SYSTEM_PROMPT = '''You are Second-Brain, an AI that converts messy voice transcripts into ONE OR MORE structured nodes.
 
 ## Your Task
-Analyze the transcript and create exactly ONE node by calling one of these tools:
+Analyze the transcript and create one or more nodes by calling the tools below.
 - create_reminder_node: For time-based reminders ("remind me to...", "don't forget to...")
 - create_todo_node: For tasks/action items ("I need to...", "add to my list...")
 - create_note_node: For information capture, thoughts, ideas (no specific action)
 - create_calendar_placeholder_node: For scheduling events/meetings ("schedule...", "set up meeting...")
 
 ## Critical Rules
-1. You MUST call exactly one tool. Do not respond with text.
-2. All timestamps MUST be ISO 8601 with timezone offset matching user_time_iso (e.g., 2026-01-12T15:00:00-05:00)
-3. Include 1-5 evidence quotes copied EXACTLY from the transcript
-4. Set confidence 0.0-1.0 honestly. Lower if ambiguous.
-5. Only use location if transcript implies it ("here", "near me", "when I get there")
-6. Set needs_clarification=true if time is ambiguous, with a clarification_question
+1. You MUST call at least one tool. Do not respond with text.
+2. If the transcript includes multiple distinct intents, call multiple tools (one per node).
+3. All timestamps MUST be ISO 8601 with timezone offset matching user_time_iso (e.g., 2026-01-12T15:00:00-05:00)
+4. Include 1-5 evidence quotes copied EXACTLY from the transcript
+5. Set confidence 0.0-1.0 honestly. Lower if ambiguous.
+6. Only use location if transcript implies it ("here", "near me", "when I get there")
+7. Set needs_clarification=true if time is ambiguous, with a clarification_question
 
 ## Time Resolution Rules
 Given user_time_iso, interpret relative times:
@@ -295,7 +316,12 @@ Given user_time_iso, interpret relative times:
 - REMINDER: User wants a future alert/notification. Has trigger time (explicit or implied).
 - TODO: User describes a task to complete. May have due date or not. Action-oriented.
 - NOTE: User is capturing information, thoughts, or ideas. No specific action required.
-- CALENDAR: User wants to schedule an event with others or block time. Meetings, appointments.
+- CALENDAR: User wants to schedule an event, meeting, appointment, demo, or block time. Any "schedule/set up/book/plan" intent with a time should be a calendar_placeholder even if the date/time is ambiguous.
+
+## Calendar Routing Rules (Important)
+- If the user is scheduling or attending an event at a specific time or date, use create_calendar_placeholder_node.
+- If the user says "schedule", "set up", "book", "plan", "meet", "appointment", "demo", "interview", or "check-in", it is CALENDAR, not TODO or REMINDER.
+- If the time is unclear or missing, still use CALENDAR and set needs_clarification=true with a clarification_question.
 
 ## Output Requirements
 - schema_version: must be "braindump.node.v1"
@@ -351,7 +377,8 @@ def call_converse(model_id: str, user_payload: dict):
     """
     Call Bedrock Converse API with tools.
     
-    Returns: (tool_name, tool_input, raw_response, latency_ms)
+    Returns: (tool_uses, raw_response, latency_ms)
+    tool_uses is a list of {"name": str, "input": dict}
     """
     client = get_client()
     tools = build_tools()
@@ -383,16 +410,16 @@ def call_converse(model_id: str, user_payload: dict):
     latency_ms = int((time.time() - start_time) * 1000)
     
     # Extract tool use from response
-    tool_name = None
-    tool_input = None
+    tool_uses = []
     
     if "output" in response and "message" in response["output"]:
         message = response["output"]["message"]
         if "content" in message:
             for block in message["content"]:
                 if "toolUse" in block:
-                    tool_name = block["toolUse"]["name"]
-                    tool_input = block["toolUse"]["input"]
-                    break
+                    tool_uses.append({
+                        "name": block["toolUse"]["name"],
+                        "input": block["toolUse"]["input"]
+                    })
     
-    return tool_name, tool_input, response, latency_ms
+    return tool_uses, response, latency_ms

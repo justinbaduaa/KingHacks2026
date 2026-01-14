@@ -78,7 +78,6 @@ Resources:
         - email
       AutoVerifiedAttributes:
         - email
-      MfaConfiguration: OFF
       Policies:
         PasswordPolicy:
           MinimumLength: 8
@@ -184,7 +183,7 @@ Resources:
       MemorySize: 512
       Environment:
         Variables:
-          BEDROCK_MODEL_ID: anthropic.claude-3-haiku-20240307-v1:0
+          BEDROCK_MODEL_ID: arn:aws:bedrock:us-east-1:244271315858:inference-profile/us.anthropic.claude-haiku-4-5-20251001-v1:0
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref DynamoDBTable
@@ -192,6 +191,8 @@ Resources:
             - Effect: Allow
               Action:
                 - bedrock:InvokeModel
+                - bedrock:Converse
+                - bedrock:ConverseStream
               Resource: "*"
       Events:
         Api:

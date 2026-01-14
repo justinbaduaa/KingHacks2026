@@ -6,12 +6,98 @@ const {
   screen,
 } = require("electron");
 const path = require("path");
+const fs = require("fs");
+const { execSync } = require("child_process");
 const { ensureValidTokens, loginInteractive } = require("./auth");
-const { createTranscribeSession } = require("./transcribe");
+const https = require("https");
+// const { createTranscribeSession } = require("./transcribe");
 
 let mainWindow = null;
 let isShortcutHeld = false;
-const transcribeSession = createTranscribeSession();
+// const transcribeSession = createTranscribeSession();
+
+// Cache for API URL
+let cachedApiUrl = null;
+
+function getStackOutput(stackName, outputKey) {
+  try {
+    const result = execSync(
+      `aws cloudformation describe-stacks --stack-name ${stackName} --query "Stacks[0].Outputs[?OutputKey=='${outputKey}'].OutputValue" --output text`,
+      { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] }
+    );
+    const value = result.trim();
+    return value && value !== "None" ? value : null;
+  } catch (err) {
+    return null;
+  }
+}
+
+function getApiUrl() {
+  if (cachedApiUrl) {
+    return cachedApiUrl;
+  }
+  const stackName = "second-brain-backend-evan";
+  const url = getStackOutput(stackName, "ApiEndpoint");
+  if (url) {
+    cachedApiUrl = url.endsWith("/") ? url : url + "/";
+  }
+  return cachedApiUrl;
+}
+
+async function callApi(endpoint, method = "GET", body = null) {
+  const apiUrl = getApiUrl();
+  if (!apiUrl) {
+    throw new Error("Could not get API URL from stack");
+  }
+
+  const tokens = await ensureValidTokens();
+  if (!tokens || !tokens.id_token) {
+    throw new Error("Not authenticated. Please log in first.");
+  }
+
+  const fullUrl = apiUrl + endpoint;
+  const url = new URL(fullUrl);
+  const options = {
+    hostname: url.hostname,
+    path: url.pathname + url.search,
+    method,
+    headers: {
+      Authorization: `Bearer ${tokens.id_token}`,
+      "Content-Type": "application/json",
+    },
+  };
+
+  return new Promise((resolve, reject) => {
+    const req = https.request(options, (res) => {
+      let data = "";
+      res.on("data", (chunk) => {
+        data += chunk;
+      });
+      res.on("end", () => {
+        try {
+          const jsonData = JSON.parse(data);
+          resolve({
+            statusCode: res.statusCode,
+            body: jsonData,
+          });
+        } catch (err) {
+          resolve({
+            statusCode: res.statusCode,
+            body: data,
+          });
+        }
+      });
+    });
+
+    req.on("error", reject);
+
+    if (body) {
+      req.write(JSON.stringify(body));
+    }
+
+    req.end();
+  });
+}
 
 process.on("uncaughtException", (err) => {
   console.error("Uncaught exception in main process:", err);
@@ -100,7 +186,9 @@ function showWindow() {
 
     mainWindow.show();
     mainWindow.focus();
-    mainWindow.webContents.send("start-listening");
+    if (mainWindow.webContents && !mainWindow.webContents.isDestroyed()) {
+      mainWindow.webContents.send("start-listening");
+    }
   }
 }
 
@@ -108,11 +196,29 @@ function showWindow() {
 function hideWindow() {
   if (mainWindow && mainWindow.isVisible()) {
     mainWindow.hide();
-    mainWindow.webContents.send("window-hidden");
+    // Check if webContents is still valid before sending
+    if (mainWindow.webContents && !mainWindow.webContents.isDestroyed()) {
+      mainWindow.webContents.send("window-hidden");
+    }
   }
 }
 
 app.whenReady().then(() => {
+  // Handle command-line flags
+  if (process.argv.includes("--clear-auth") || process.argv.includes("--logout")) {
+    const { app: electronApp } = require("electron");
+    const authPath = path.join(electronApp.getPath("userData"), "auth.json");
+    if (fs.existsSync(authPath)) {
+      fs.unlinkSync(authPath);
+      console.log("✅ Authentication tokens cleared!");
+      console.log(`   Deleted: ${authPath}`);
+    } else {
+      console.log("ℹ️  No saved tokens found.");
+    }
+    app.quit();
+    return;
+  }
+
   if (process.env.PRINT_TOKEN === "1") {
     (async () => {
       const tokens = await ensureValidTokens().catch(() => null);
@@ -121,6 +227,30 @@ app.whenReady().then(() => {
         console.error("No access token available.");
       } else {
         console.log(result.id_token);
+      }
+      app.quit();
+    })();
+    return;
+  }
+
+  if (process.argv.includes("--force-login")) {
+    (async () => {
+      console.log("🔄 Forcing new login...");
+      // Clear existing tokens first
+      const { app: electronApp } = require("electron");
+      const authPath = path.join(electronApp.getPath("userData"), "auth.json");
+      if (fs.existsSync(authPath)) {
+        fs.unlinkSync(authPath);
+      }
+      // Start login flow
+      const tokens = await loginInteractive().catch((err) => {
+        console.error("Login failed:", err);
+        return null;
+      });
+      if (tokens) {
+        console.log("✅ Login successful!");
+        console.log(`   Access token: ${tokens.access_token.substring(0, 30)}...`);
+        console.log(`   ID token: ${tokens.id_token.substring(0, 30)}...`);
       }
       app.quit();
     })();
@@ -145,7 +275,8 @@ app.whenReady().then(() => {
 
   // Poll keyboard state to detect release
   setInterval(() => {
-    if (isShortcutHeld && mainWindow && mainWindow.isVisible()) {
+    if (isShortcutHeld && mainWindow && mainWindow.isVisible() && 
+        mainWindow.webContents && !mainWindow.webContents.isDestroyed()) {
       // Send ping to check if keys are still held
       mainWindow.webContents.send("check-keys");
     }
@@ -159,7 +290,9 @@ app.whenReady().then(() => {
   ipcMain.handle("keys-released", () => {
     if (isShortcutHeld) {
       isShortcutHeld = false;
-      mainWindow.webContents.send("stop-listening");
+      if (mainWindow && mainWindow.webContents && !mainWindow.webContents.isDestroyed()) {
+        mainWindow.webContents.send("stop-listening");
+      }
     }
   });
 
@@ -184,25 +317,43 @@ app.whenReady().then(() => {
     return { authenticated: Boolean(tokens) };
   });
 
-  ipcMain.handle("transcribe-start", async () => {
+  ipcMain.handle("ingest-transcript", async (event, transcript, userTimeIso) => {
     try {
-      const started = await transcribeSession.start();
-      return { started: Boolean(started) };
+      const body = {
+        transcript: transcript,
+        user_time_iso: userTimeIso || new Date().toISOString(),
+        user_id: "demo",
+        user_location: {
+          kind: "unknown",
+        },
+      };
+      const result = await callApi("ingest", "POST", body);
+      return { success: true, ...result };
     } catch (err) {
-      console.error("Failed to start transcription:", err);
-      return { started: false, error: err?.message || "start_failed" };
+      return { success: false, error: err.message };
     }
   });
 
-  ipcMain.handle("transcribe-stop", async () => {
-    transcribeSession.stop();
-    return { stopped: true };
-  });
+  // TRANSCRIPTION CODE COMMENTED OUT
+  // ipcMain.handle("transcribe-start", async () => {
+  //   try {
+  //     const started = await transcribeSession.start();
+  //     return { started: Boolean(started) };
+  //   } catch (err) {
+  //     console.error("Failed to start transcription:", err);
+  //     return { started: false, error: err?.message || "start_failed" };
+  //   }
+  // });
 
-  ipcMain.on("transcribe-audio", (event, chunk) => {
-    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-    transcribeSession.enqueue(buffer);
-  });
+  // ipcMain.handle("transcribe-stop", async () => {
+  //   transcribeSession.stop();
+  //   return { stopped: true };
+  // });
+
+  // ipcMain.on("transcribe-audio", (event, chunk) => {
+  //   const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+  //   transcribeSession.enqueue(buffer);
+  // });
 
 
   if (process.platform === "darwin") {

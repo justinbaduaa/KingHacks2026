@@ -6,7 +6,9 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron . --enable-logging",
-    "token": "PRINT_TOKEN=1 electron ."
+    "token": "PRINT_TOKEN=1 electron .",
+    "logout": "electron . --clear-auth",
+    "force-login": "electron . --force-login"
   },
   "keywords": [
     "electron",

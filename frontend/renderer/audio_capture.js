@@ -1,5 +1,6 @@
 (() => {
-  const TRANSCRIBE_SAMPLE_RATE = 16000;
+  // TRANSCRIPTION CODE COMMENTED OUT
+  // const TRANSCRIBE_SAMPLE_RATE = 16000;
 
   let audioContext = null;
   let analyser = null;
@@ -11,40 +12,41 @@
   let active = false;
   let simulated = false;
 
-  function downsampleBuffer(buffer, inputSampleRate, outputSampleRate) {
-    if (outputSampleRate === inputSampleRate) {
-      return buffer;
-    }
-    const ratio = inputSampleRate / outputSampleRate;
-    const newLength = Math.round(buffer.length / ratio);
-    const result = new Float32Array(newLength);
-    let offsetResult = 0;
-    let offsetBuffer = 0;
-    while (offsetResult < result.length) {
-      const nextOffsetBuffer = Math.round((offsetResult + 1) * ratio);
-      let accum = 0;
-      let count = 0;
-      for (let i = offsetBuffer; i < nextOffsetBuffer && i < buffer.length; i++) {
-        accum += buffer[i];
-        count += 1;
-      }
-      result[offsetResult] = count > 0 ? accum / count : 0;
-      offsetResult += 1;
-      offsetBuffer = nextOffsetBuffer;
-    }
-    return result;
-  }
+  // TRANSCRIPTION CODE COMMENTED OUT
+  // function downsampleBuffer(buffer, inputSampleRate, outputSampleRate) {
+  //   if (outputSampleRate === inputSampleRate) {
+  //     return buffer;
+  //   }
+  //   const ratio = inputSampleRate / outputSampleRate;
+  //   const newLength = Math.round(buffer.length / ratio);
+  //   const result = new Float32Array(newLength);
+  //   let offsetResult = 0;
+  //   let offsetBuffer = 0;
+  //   while (offsetResult < result.length) {
+  //     const nextOffsetBuffer = Math.round((offsetResult + 1) * ratio);
+  //     let accum = 0;
+  //     let count = 0;
+  //     for (let i = offsetBuffer; i < nextOffsetBuffer && i < buffer.length; i++) {
+  //       accum += buffer[i];
+  //       count += 1;
+  //     }
+  //     result[offsetResult] = count > 0 ? accum / count : 0;
+  //     offsetResult += 1;
+  //     offsetBuffer = nextOffsetBuffer;
+  //   }
+  //   return result;
+  // }
 
-  function floatTo16BitPCM(float32Array) {
-    const buffer = new ArrayBuffer(float32Array.length * 2);
-    const view = new DataView(buffer);
-    for (let i = 0; i < float32Array.length; i++) {
-      let sample = Math.max(-1, Math.min(1, float32Array[i]));
-      sample = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
-      view.setInt16(i * 2, sample, true);
-    }
-    return buffer;
-  }
+  // function floatTo16BitPCM(float32Array) {
+  //   const buffer = new ArrayBuffer(float32Array.length * 2);
+  //   const view = new DataView(buffer);
+  //   for (let i = 0; i < float32Array.length; i++) {
+  //     let sample = Math.max(-1, Math.min(1, float32Array[i]));
+  //     sample = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+  //     view.setInt16(i * 2, sample, true);
+  //   }
+  //   return buffer;
+  // }
 
   function startSimulation(onLoudness) {
     simulated = true;
@@ -79,22 +81,22 @@
       microphone = audioContext.createMediaStreamSource(mediaStream);
       microphone.connect(analyser);
 
-      processor = audioContext.createScriptProcessor(4096, 1, 1);
-      zeroGain = audioContext.createGain();
-      zeroGain.gain.value = 0;
-      microphone.connect(processor);
-      processor.connect(zeroGain);
-      zeroGain.connect(audioContext.destination);
-
-      processor.onaudioprocess = (event) => {
-        if (!onAudioChunk) {
-          return;
-        }
-        const input = event.inputBuffer.getChannelData(0);
-        const downsampled = downsampleBuffer(input, audioContext.sampleRate, TRANSCRIBE_SAMPLE_RATE);
-        const pcm = floatTo16BitPCM(downsampled);
-        onAudioChunk(pcm);
-      };
+      // TRANSCRIPTION CODE COMMENTED OUT
+      // processor = audioContext.createScriptProcessor(4096, 1, 1);
+      // zeroGain = audioContext.createGain();
+      // zeroGain.gain.value = 0;
+      // microphone.connect(processor);
+      // processor.connect(zeroGain);
+      // zeroGain.connect(audioContext.destination);
+      // processor.onaudioprocess = (event) => {
+      //   if (!onAudioChunk) {
+      //     return;
+      //   }
+      //   const input = event.inputBuffer.getChannelData(0);
+      //   const downsampled = downsampleBuffer(input, audioContext.sampleRate, TRANSCRIBE_SAMPLE_RATE);
+      //   const pcm = floatTo16BitPCM(downsampled);
+      //   onAudioChunk(pcm);
+      // };
 
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
       function analyze() {
@@ -131,14 +133,15 @@
       audioContext.close();
       audioContext = null;
     }
-    if (processor) {
-      processor.disconnect();
-      processor = null;
-    }
-    if (zeroGain) {
-      zeroGain.disconnect();
-      zeroGain = null;
-    }
+    // TRANSCRIPTION CODE COMMENTED OUT
+    // if (processor) {
+    //   processor.disconnect();
+    //   processor = null;
+    // }
+    // if (zeroGain) {
+    //   zeroGain.disconnect();
+    //   zeroGain = null;
+    // }
     analyser = null;
     microphone = null;
   }

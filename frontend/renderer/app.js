@@ -14,6 +14,10 @@ const brainIcon = document.getElementById('brain-icon');
 const cardsStack = document.getElementById('cards-stack');
 const loadingBar = document.querySelector('.loading-bar');
 const expiredMessage = document.getElementById('expired-message');
+const testApiBtn = document.getElementById('test-api-btn');
+const testResults = document.getElementById('test-results');
+const testResultsContent = document.getElementById('test-results-content');
+const testResultsClose = document.getElementById('test-results-close');
 
 // Timer state
 let timerPermanentlyPaused = false;
@@ -34,6 +38,74 @@ const MOCK_TASKS = [
   { type: 'Calendar', text: "Meeting with Design Team at 2:00 PM" },
   { type: 'Todo', text: "Research competitors for new feature" }
 ];
+
+const MOCK_TRANSCRIPT =
+  "Remind me to email Sarah tomorrow morning about the project update, " +
+  "schedule a meeting with the design team next Tuesday afternoon, " +
+  "and add a task to review competitor pricing by Friday.";
+
+function nodeToTask(node, fallbackText = '') {
+  if (!node || typeof node !== 'object') {
+    return { type: 'Note', text: fallbackText || 'Captured item' };
+  }
+
+  const typeMap = {
+    reminder: 'Reminder',
+    todo: 'Todo',
+    note: 'Note',
+    calendar_placeholder: 'Calendar'
+  };
+
+  let text = fallbackText || node.title || node.body || '';
+
+  switch (node.node_type) {
+    case 'reminder':
+      text = node.reminder?.reminder_text || node.title || node.body || fallbackText;
+      break;
+    case 'todo':
+      text = node.todo?.task || node.title || node.body || fallbackText;
+      break;
+    case 'note':
+      text = node.note?.content || node.title || node.body || fallbackText;
+      break;
+    case 'calendar_placeholder':
+      text = node.calendar_placeholder?.event_title ||
+        node.calendar_placeholder?.intent ||
+        node.title ||
+        node.body ||
+        fallbackText;
+      break;
+  }
+
+  return {
+    type: typeMap[node.node_type] || 'Note',
+    text: text || 'Captured item'
+  };
+}
+
+async function fetchMockTasksFromApi() {
+  if (!window.braindump?.ingestTranscript) {
+    return null;
+  }
+
+  const userTimeIso = new Date().toISOString();
+  const transcript = MOCK_TRANSCRIPT;
+
+  try {
+    const result = await window.braindump.ingestTranscript(transcript, userTimeIso);
+    if (result?.success && result?.statusCode === 200) {
+      const nodes = result?.body?.nodes || (result?.body?.node ? [result.body.node] : []);
+      if (nodes.length > 0) {
+        return nodes.map((node) => nodeToTask(node, transcript));
+      }
+    }
+    console.warn('Ingest failed, falling back to mock tasks:', result);
+  } catch (err) {
+    console.warn('Ingest error, falling back to mock tasks:', err);
+  }
+
+  return null;
+}
 
 // Helper: Get icon SVG based on card type
 function getIconForType(type) {
@@ -498,7 +570,8 @@ function setState(newState, data = {}) {
   
   // Stop audio analysis
   stopAudioAnalysis();
-  stopTranscriptionStream();
+  // TRANSCRIPTION CODE COMMENTED OUT
+  // stopTranscriptionStream();
   
   switch (newState) {
     case State.IDLE:
@@ -512,7 +585,8 @@ function setState(newState, data = {}) {
     case State.LISTENING:
       brainContainer.classList.remove('hidden');
       cardsStack.classList.remove('visible');
-      startTranscriptionStream();
+      // TRANSCRIPTION CODE COMMENTED OUT
+      // startTranscriptionStream();
       startAudioAnalysis();
       break;
       
@@ -542,7 +616,8 @@ async function startAudioAnalysis() {
   }
   await audioCapture.start({
     onLoudness: updatePulse,
-    onAudioChunk: handleAudioChunk,
+    // TRANSCRIPTION CODE COMMENTED OUT
+    // onAudioChunk: handleAudioChunk,
   });
 }
 
@@ -551,40 +626,47 @@ function stopAudioAnalysis() {
   audioCapture?.stop?.();
 }
 
+// TRANSCRIPTION CODE COMMENTED OUT
 function startTranscriptionStream() {
-  if (transcriptionActive || !window.braindump?.startTranscription) {
-    return;
-  }
-  window.braindump
-    .startTranscription()
-    .then((result) => {
-      if (result?.started) {
-        transcriptionActive = true;
-      } else {
-        console.error("Failed to start transcription:", result?.error || "unknown_error");
-      }
-    })
-    .catch((err) => {
-      console.error("Failed to start transcription:", err);
-      transcriptionActive = false;
-    });
+  // Transcription disabled
+  transcriptionActive = false;
+  // if (transcriptionActive || !window.braindump?.startTranscription) {
+  //   return;
+  // }
+  // window.braindump
+  //   .startTranscription()
+  //   .then((result) => {
+  //     if (result?.started) {
+  //       transcriptionActive = true;
+  //     } else {
+  //       console.error("Failed to start transcription:", result?.error || "unknown_error");
+  //     }
+  //   })
+  //   .catch((err) => {
+  //     console.error("Failed to start transcription:", err);
+  //     transcriptionActive = false;
+  //   });
 }
 
 function stopTranscriptionStream() {
-  if (!transcriptionActive || !window.braindump?.stopTranscription) {
-    return;
-  }
+  // Transcription disabled
   transcriptionActive = false;
-  window.braindump.stopTranscription().catch((err) => {
-    console.error("Failed to stop transcription:", err);
-  });
+  // if (!transcriptionActive || !window.braindump?.stopTranscription) {
+  //   return;
+  // }
+  // transcriptionActive = false;
+  // window.braindump.stopTranscription().catch((err) => {
+  //   console.error("Failed to stop transcription:", err);
+  // });
 }
 
 function handleAudioChunk(pcm) {
-  if (!transcriptionActive || !window.braindump?.sendAudioChunk) {
-    return;
-  }
-  window.braindump.sendAudioChunk(pcm);
+  // Transcription disabled - audio chunks ignored
+  return;
+  // if (!transcriptionActive || !window.braindump?.sendAudioChunk) {
+  //   return;
+  // }
+  // window.braindump.sendAudioChunk(pcm);
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -593,9 +675,21 @@ async function processAndShowAction() {
   // Brief processing moment
   setState(State.PROCESSING);
   await sleep(300);
+
+  let tasks = MOCK_TASKS;
+
+  try {
+    await ensureAuthenticated();
+    const apiTasks = await fetchMockTasksFromApi();
+    if (apiTasks && apiTasks.length > 0) {
+      tasks = apiTasks;
+    }
+  } catch (err) {
+    console.warn('Failed to fetch ingest tasks, using mock tasks:', err);
+  }
   
   // Generate and render cards before showing
-  renderCards(MOCK_TASKS);
+  renderCards(tasks);
   
   // Show the card stack
   setState(State.CONFIRMED);
@@ -646,6 +740,88 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     keysHeld = false;
     window.braindump.hideWindow();
+  }
+});
+
+// Test API functionality
+async function testAPIs() {
+  if (!window.braindump?.testWhoami || !window.braindump?.testIngest) {
+    showTestResult('error', 'API test functions not available');
+    return;
+  }
+
+  testApiBtn.classList.add('loading');
+  testResultsContent.innerHTML = '';
+
+  try {
+    // Test WhoAmI
+    showTestResult('info', 'Testing WhoAmI API...');
+    const whoamiResult = await window.braindump.testWhoami();
+    
+    if (whoamiResult.success && whoamiResult.statusCode === 200) {
+      showTestResult('success', 'WhoAmI', JSON.stringify(whoamiResult.body, null, 2));
+    } else {
+      showTestResult('error', 'WhoAmI Failed', 
+        `Status: ${whoamiResult.statusCode || 'N/A'}\n` +
+        `Error: ${whoamiResult.error || JSON.stringify(whoamiResult.body, null, 2)}`
+      );
+    }
+
+    // Test Ingest
+    showTestResult('info', 'Testing Ingest API...');
+    const ingestResult = await window.braindump.testIngest('Remind me to call Sarah tomorrow at 3pm');
+    
+    if (ingestResult.success && ingestResult.statusCode === 200) {
+      showTestResult('success', 'Ingest', JSON.stringify(ingestResult.body, null, 2));
+    } else {
+      showTestResult('error', 'Ingest Failed',
+        `Status: ${ingestResult.statusCode || 'N/A'}\n` +
+        `Error: ${ingestResult.error || JSON.stringify(ingestResult.body, null, 2)}`
+      );
+    }
+  } catch (err) {
+    showTestResult('error', 'Test Error', err.message);
+  } finally {
+    testApiBtn.classList.remove('loading');
+    testResults.classList.add('visible');
+  }
+}
+
+function showTestResult(type, label, content = '') {
+  const item = document.createElement('div');
+  item.className = `test-result-item ${type}`;
+  
+  const labelEl = document.createElement('div');
+  labelEl.className = 'test-result-label';
+  labelEl.textContent = label;
+  item.appendChild(labelEl);
+  
+  if (content) {
+    const contentEl = document.createElement('div');
+    contentEl.className = 'test-result-content';
+    contentEl.textContent = content;
+    item.appendChild(contentEl);
+  }
+  
+  testResultsContent.appendChild(item);
+  testResultsContent.scrollTop = testResultsContent.scrollHeight;
+}
+
+// Test API button click handler
+testApiBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  testAPIs();
+});
+
+// Close test results
+testResultsClose.addEventListener('click', () => {
+  testResults.classList.remove('visible');
+});
+
+// Close on escape key
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && testResults.classList.contains('visible')) {
+    testResults.classList.remove('visible');
   }
 });
 
