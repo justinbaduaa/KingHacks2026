@@ -23,6 +23,7 @@ const testApiBtn = document.getElementById('test-api-btn');
 const testResults = document.getElementById('test-results');
 const testResultsContent = document.getElementById('test-results-content');
 const testResultsClose = document.getElementById('test-results-close');
+const processingPanel = document.getElementById('processing-panel');
 
 // Timer state
 let timerPermanentlyPaused = false;
@@ -111,6 +112,64 @@ function buildTranscriptTask() {
       text: getTranscriptText(),
     },
   ];
+}
+
+function getFinalTranscriptForIngest() {
+  const finalText = transcriptFinals.join(" ").trim();
+  if (finalText) {
+    return finalText;
+  }
+  return (transcriptPartial || "").trim();
+}
+
+function formatNodeText(node) {
+  if (!node || typeof node !== "object") {
+    return "No content available.";
+  }
+  const nodeType = node.node_type || "";
+  if (nodeType === "reminder" && node.reminder?.reminder_text) {
+    return node.reminder.reminder_text;
+  }
+  if (nodeType === "todo" && node.todo?.task) {
+    return node.todo.task;
+  }
+  if (nodeType === "note" && node.note?.content) {
+    return node.note.content;
+  }
+  if (nodeType === "calendar_placeholder" && node.calendar_placeholder?.intent) {
+    return node.calendar_placeholder.intent;
+  }
+  return node.title || node.body || "No content available.";
+}
+
+function formatNodeType(nodeType) {
+  switch (nodeType) {
+    case "reminder":
+      return "Reminder";
+    case "todo":
+      return "Todo";
+    case "note":
+      return "Note";
+    case "calendar_placeholder":
+      return "Calendar";
+    default:
+      return "Note";
+  }
+}
+
+function buildCardsFromNodes(nodes) {
+  if (!Array.isArray(nodes) || nodes.length === 0) {
+    return [
+      {
+        type: "Note",
+        text: "No Bedrock results returned.",
+      },
+    ];
+  }
+  return nodes.map((node) => ({
+    type: formatNodeType(node?.node_type),
+    text: formatNodeText(node),
+  }));
 }
 
 // Helper: Get icon SVG based on card type
@@ -577,6 +636,9 @@ function updatePulse(loudness) {
 function setState(newState, data = {}) {
   currentState = newState;
   brainContainer.className = 'brain-container ' + newState;
+  if (processingPanel) {
+    processingPanel.style.display = newState === State.PROCESSING ? 'flex' : 'none';
+  }
   
   switch (newState) {
     case State.IDLE:
@@ -595,6 +657,7 @@ function setState(newState, data = {}) {
     case State.PROCESSING:
       brainContainer.classList.add('hidden');
       brainIcon.style.transform = 'scale(1)';
+      cardsStack.classList.add('visible');
       break;
       
     case State.CONFIRMED:
@@ -617,8 +680,41 @@ async function processAndShowAction() {
   setState(State.PROCESSING);
   await sleep(300);
 
-  // Generate and render single transcript card
-  renderCards(buildTranscriptTask());
+  const transcript = getFinalTranscriptForIngest();
+  console.log(`[TRANSCRIPT] ${transcript || "No transcription captured."}`);
+
+  if (!transcript) {
+    renderCards(buildTranscriptTask());
+    setState(State.CONFIRMED);
+    return;
+  }
+
+  let cards = buildTranscriptTask();
+  if (window.braindump?.ingestTranscript) {
+    try {
+      const result = await window.braindump.ingestTranscript(transcript, new Date().toISOString());
+      const nodes = result?.body?.nodes || (result?.body?.node ? [result.body.node] : []);
+      if (result?.success && nodes.length > 0) {
+        cards = buildCardsFromNodes(nodes);
+      } else if (result?.success === false) {
+        cards = [
+          {
+            type: "Note",
+            text: result?.error || "Bedrock ingest failed.",
+          },
+        ];
+      }
+    } catch (err) {
+      cards = [
+        {
+          type: "Note",
+          text: err?.message || "Bedrock ingest failed.",
+        },
+      ];
+    }
+  }
+
+  renderCards(cards);
   
   // Show the card stack
   setState(State.CONFIRMED);
