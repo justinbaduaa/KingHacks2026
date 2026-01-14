@@ -12,7 +12,7 @@ const path = require("path");
 const fs = require("fs");
 const https = require("https");
 const { execSync } = require("child_process");
-const { ensureValidTokens, loadConfig, loginInteractive } = require("./auth");
+const { ensureValidTokens, loadConfig, loginInteractive, clearTokens } = require("./auth");
 const { createTranscribeSession } = require("./transcribe");
 
 let mainWindow = null;
@@ -353,7 +353,24 @@ function createTray() {
   tray.setContextMenu(contextMenu);
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  const shouldClearAuth = process.argv.includes("--clear-auth");
+  const shouldForceLogin = process.argv.includes("--force-login");
+
+  if (shouldClearAuth) {
+    clearTokens();
+    console.log("[AUTH] Cleared stored tokens.");
+  }
+
+  if (shouldForceLogin) {
+    try {
+      await loginInteractive();
+      console.log("[AUTH] Login complete.");
+    } catch (err) {
+      console.error("[AUTH] Login failed:", err);
+    }
+  }
+
   createWindow();
   createTray();
 

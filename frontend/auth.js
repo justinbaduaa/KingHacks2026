@@ -58,6 +58,13 @@ function loadTokens() {
   }
 }
 
+function clearTokens() {
+  const storagePath = getStoragePath();
+  if (fs.existsSync(storagePath)) {
+    fs.unlinkSync(storagePath);
+  }
+}
+
 function saveTokens(tokens) {
   const payload = encryptPayload(tokens);
   fs.writeFileSync(getStoragePath(), payload);
@@ -225,4 +232,5 @@ module.exports = {
   ensureValidTokens,
   loginInteractive,
   loadConfig,
+  clearTokens,
 };
