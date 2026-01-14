@@ -27,6 +27,7 @@ let expiredDismissTimeout = null;
 // Backend integration
 let currentTasks = [];  // Real tasks from backend
 let transcriptBuffer = '';  // Buffer for collecting transcript
+let lastPartialTranscript = '';  // Track the last partial transcript (not yet finalized)
 let audioStreamProcessor = null;  // Audio processor for streaming to main process
 let audioWorkletNode = null;  // AudioWorklet node for modern audio processing
 let workletReady = false;  // Flag to track if worklet is registered
@@ -705,12 +706,26 @@ function startLoudnessSimulation() {
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 async function processAndShowAction() {
-  // Brief processing moment
+  // Update UI immediately to look like we're processing (while still listening briefly)
+  // This "shadow listening" captures the tail of speech without the user knowing
+  brainContainer.classList.add('hidden');
+  processingContainer.classList.add('visible');
+
+  // Wait a moment to capture the tail of the sentence
+  console.log('[AUDIO] Capturing tail (800ms shadow listening)...');
+  await sleep(1000);
+
+  // Brief processing moment (effectively finalizes the state and stops audio)
   setState(State.PROCESSING);
   
-  // Get the transcript we've collected
-  const transcript = transcriptBuffer.trim();
+  // Get the transcript we've collected (including any last partial that wasn't finalized)
+  let transcript = transcriptBuffer.trim();
+  if (lastPartialTranscript) {
+    transcript = (transcript + ' ' + lastPartialTranscript).trim();
+    console.log('[TRANSCRIPT] Including last partial:', lastPartialTranscript);
+  }
   transcriptBuffer = '';
+  lastPartialTranscript = '';
   
   // Stop transcription
   if (isTranscribing) {
@@ -772,9 +787,16 @@ window.braindump.onCheckKeys(() => {
 
 // Handle transcript events from AWS Transcribe
 window.braindump.onTranscript((payload) => {
-  if (payload && !payload.partial && payload.text) {
-    transcriptBuffer += ' ' + payload.text;
-    console.log('[TRANSCRIPT] Partial:', payload.text);
+  if (payload && payload.text) {
+    if (payload.partial) {
+      // Track the latest partial (not yet finalized)
+      lastPartialTranscript = payload.text;
+    } else {
+      // Finalized transcript - add to buffer and clear partial
+      transcriptBuffer += ' ' + payload.text;
+      lastPartialTranscript = '';  // Clear since this was finalized
+      console.log('[TRANSCRIPT] Final:', payload.text);
+    }
   }
 });
 
