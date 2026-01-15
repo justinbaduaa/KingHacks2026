@@ -15,11 +15,64 @@ const { execSync } = require("child_process");
 const { ensureValidTokens, loadConfig, loginInteractive, clearTokens } = require("./auth");
 const { loginGoogleInteractive } = require("./google_auth");
 const { createTranscribeSession } = require("./transcribe");
+const { getShortcut, setShortcut } = require("./settings");
 
 let mainWindow = null;
 let dashboardWindow = null;
 let tray = null;
 let isShortcutHeld = false;
+let currentShortcut = null;
+let isShortcutPaused = false;
+
+// Register or re-register global shortcut
+function registerGlobalShortcut(shortcut) {
+  // Unregister previous shortcut if exists
+  if (currentShortcut) {
+    globalShortcut.unregister(currentShortcut);
+  }
+  
+  // Register new shortcut
+  const success = globalShortcut.register(shortcut, () => {
+    if (!isShortcutHeld) {
+      isShortcutHeld = true;
+      showWindow();
+    }
+  });
+  
+  if (success) {
+    currentShortcut = shortcut;
+    console.log(`[SHORTCUT] Registered: ${shortcut}`);
+  } else {
+    console.error(`[SHORTCUT] Failed to register: ${shortcut}`);
+  }
+  
+  return success;
+}
+
+// Pause the global shortcut (for recording new shortcuts)
+function pauseShortcut() {
+  if (currentShortcut && !isShortcutPaused) {
+    globalShortcut.unregister(currentShortcut);
+    isShortcutPaused = true;
+    console.log(`[SHORTCUT] Paused: ${currentShortcut}`);
+  }
+}
+
+// Resume the global shortcut
+function resumeShortcut() {
+  if (currentShortcut && isShortcutPaused) {
+    const success = globalShortcut.register(currentShortcut, () => {
+      if (!isShortcutHeld) {
+        isShortcutHeld = true;
+        showWindow();
+      }
+    });
+    isShortcutPaused = false;
+    console.log(`[SHORTCUT] Resumed: ${currentShortcut} (success: ${success})`);
+    return success;
+  }
+  return true;
+}
 
 // Transcription state
 const transcribeSession = createTranscribeSession();
@@ -451,15 +504,9 @@ app.whenReady().then(async () => {
     }
   }
 
-  // Register shortcut - fires repeatedly while held
-  // Use Option+Shift+Space on Mac, Alt+Shift+Space on Windows/Linux
-  const shortcut = "Alt+Shift+Space";
-  globalShortcut.register(shortcut, () => {
-    if (!isShortcutHeld) {
-      isShortcutHeld = true;
-      showWindow();
-    }
-  });
+  // Register shortcut from settings (defaults to Alt+Shift+Space)
+  const savedShortcut = getShortcut();
+  registerGlobalShortcut(savedShortcut);
 
   // Poll keyboard state to detect release
   setInterval(() => {
@@ -650,6 +697,46 @@ app.whenReady().then(async () => {
     }
   });
 
+
+  // Shortcut settings handlers
+  ipcMain.handle("get-shortcut", () => {
+    return { shortcut: currentShortcut || getShortcut() };
+  });
+
+  ipcMain.handle("set-shortcut", async (event, newShortcut) => {
+    try {
+      // Validate shortcut format (basic check)
+      if (!newShortcut || typeof newShortcut !== 'string') {
+        return { success: false, error: 'Invalid shortcut format' };
+      }
+
+      // Try to register the new shortcut
+      const success = registerGlobalShortcut(newShortcut);
+      if (!success) {
+        // Revert to old shortcut
+        const oldShortcut = getShortcut();
+        registerGlobalShortcut(oldShortcut);
+        return { success: false, error: 'Failed to register shortcut. It may be in use by another application.' };
+      }
+
+      // Save to settings
+      setShortcut(newShortcut);
+      return { success: true, shortcut: newShortcut };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  // Pause/Resume shortcut handlers (for recording new shortcuts)
+  ipcMain.handle("pause-shortcut", () => {
+    pauseShortcut();
+    return { success: true };
+  });
+
+  ipcMain.handle("resume-shortcut", () => {
+    const success = resumeShortcut();
+    return { success };
+  });
 
   // Hide dock initially (macOS) - we'll show it when dashboard opens
   if (process.platform === "darwin") {

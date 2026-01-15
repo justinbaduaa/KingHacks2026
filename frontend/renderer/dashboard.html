@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SecondBrain</title>
+  <title>secondbrain</title>
   <link rel="stylesheet" href="dashboard.css">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <!-- Feather Icons -->
@@ -25,9 +25,9 @@
   <div class="login-view hidden" id="login-view">
     <div class="login-card">
       <div class="login-logo">
-        <img src="brain logo pink.png" alt="SecondBrain" />
+        <img src="brain logo pink.png" alt="secondbrain" />
       </div>
-      <h1>SecondBrain</h1>
+      <h1>secondbrain</h1>
       <p class="login-subtitle">Your AI-powered productivity companion</p>
       
       <div class="login-form">
@@ -46,7 +46,7 @@
       <div class="sidebar-header">
         <div class="sidebar-logo">
           <img src="brain logo pink.png" alt="" />
-          <span class="brand-name">BRAIN<sup>2</sup></span>
+          <span class="brand-name">secondbrain</span>
           <button class="collapse-btn" id="collapse-sidebar">
             <i data-feather="chevrons-left"></i>
           </button>
@@ -95,20 +95,9 @@
             <i data-feather="trello"></i>
             <span>Board</span>
           </a>
-          <a href="#" class="tab-item" data-tab="calendar">
-            <i data-feather="calendar"></i>
-            <span>Calendar</span>
-          </a>
         </div>
         
         <div class="nav-actions">
-          <div class="search-box">
-            <i data-feather="search"></i>
-            <input type="text" placeholder="Search..." />
-          </div>
-          <button class="action-btn" title="Refresh">
-            <i data-feather="refresh-cw"></i>
-          </button>
           <div class="user-avatar">
             <img src="brain logo pink.png" alt="User" />
           </div>
@@ -121,7 +110,7 @@
         <header class="content-header">
           <div class="header-welcome">
             <h1>Welcome Back Justin,</h1>
-            <p class="header-subtitle">Here's what SecondBrain captured for you</p>
+            <p class="header-subtitle">Here's what secondbrain captured for you</p>
           </div>
           <div class="header-stats">
             <div class="stat-pill">🌟 2 weeks active</div>
@@ -130,8 +119,15 @@
           </div>
         </header>
 
+        <!-- List View -->
+        <div class="list-view" id="list-view">
+          <div class="list-container" id="all-items-list">
+            <!-- Items populated by JS -->
+          </div>
+        </div>
+
         <!-- 4-Column Kanban Board - No Scroll, All Expanded -->
-        <div class="kanban-board">
+        <div class="kanban-board" id="board-view">
           
           <!-- Column 1: Outgoing Tasks -->
           <section class="kanban-column">
@@ -140,7 +136,6 @@
                 <h2>TASKS</h2>
                 <span class="count-badge" id="pending-count">0</span>
               </div>
-              <button class="column-menu"><i data-feather="more-horizontal"></i></button>
             </div>
             <div class="column-content" id="pending-list">
               <!-- Cards populated by JS -->
@@ -154,7 +149,6 @@
                 <h2>REMINDERS</h2>
                 <span class="count-badge reminder-badge" id="reminders-count">0</span>
               </div>
-              <button class="column-menu"><i data-feather="more-horizontal"></i></button>
             </div>
             <div class="column-content" id="reminders-list">
               <!-- Cards populated by JS -->
@@ -168,7 +162,6 @@
                 <h2>NOTES</h2>
                 <span class="count-badge notes-badge" id="notes-count">0</span>
               </div>
-              <button class="column-menu"><i data-feather="more-horizontal"></i></button>
             </div>
             <div class="column-content" id="notes-list">
               <!-- Cards populated by JS -->
@@ -182,7 +175,6 @@
                 <h2>CALENDAR</h2>
                 <span class="count-badge calendar-badge" id="calendar-count">0</span>
               </div>
-              <button class="column-menu"><i data-feather="more-horizontal"></i></button>
             </div>
             <div class="column-content" id="calendar-list">
               <!-- Cards populated by JS -->
@@ -197,7 +189,7 @@
         <header class="content-header">
           <div class="header-welcome">
             <h1>Activity History</h1>
-            <p class="header-subtitle">Everything SecondBrain has captured</p>
+            <p class="header-subtitle">Everything secondbrain has captured</p>
           </div>
           <div class="header-actions-row">
             <div class="filter-pills">
@@ -222,7 +214,7 @@
         <header class="content-header">
           <div class="header-welcome">
             <h1>Settings</h1>
-            <p class="header-subtitle">Customize your SecondBrain experience</p>
+            <p class="header-subtitle">Customize your secondbrain experience</p>
           </div>
         </header>
 
@@ -234,12 +226,47 @@
                 <span>Global Shortcut</span>
                 <span class="settings-desc">Trigger voice capture</span>
               </div>
-              <div class="shortcut-badge">⌥⇧Space</div>
+              <div class="shortcut-recorder">
+                <button class="shortcut-badge" id="shortcut-badge" title="Click to change">
+                  <span id="shortcut-display">⌥⇧Space</span>
+                </button>
+                <button class="shortcut-reset" id="shortcut-reset" title="Reset to default">
+                  <i data-feather="rotate-ccw"></i>
+                </button>
+              </div>
+            </div>
+            
+            <!-- Shortcut Recording Modal -->
+            <div class="shortcut-recording-modal" id="shortcut-recording-modal">
+              <div class="modal-backdrop"></div>
+              <div class="modal-content">
+                <div class="modal-icon">
+                  <i data-feather="command"></i>
+                </div>
+                <h3>Recording Shortcut</h3>
+                <p id="modal-instruction">Press and hold your key combination</p>
+                
+                <!-- Live key display -->
+                <div class="modal-keys-display" id="modal-keys-display">
+                  <span class="waiting-text">Waiting for keys...</span>
+                </div>
+                
+                <!-- Hold timer bar -->
+                <div class="modal-timer-container" id="modal-timer-container">
+                  <div class="modal-timer-bar" id="modal-timer-bar"></div>
+                </div>
+                <span class="modal-timer-label" id="modal-timer-label">Hold for 1 second to save</span>
+                
+                <button class="modal-cancel-btn" id="modal-cancel-recording">
+                  <i data-feather="x"></i>
+                  Cancel
+                </button>
+              </div>
             </div>
             <div class="settings-item">
               <div class="settings-label">
                 <span>Launch at Login</span>
-                <span class="settings-desc">Start SecondBrain when you log in</span>
+                <span class="settings-desc">Start secondbrain when you log in</span>
               </div>
               <label class="toggle-switch">
                 <input type="checkbox" checked>

@@ -1,5 +1,8 @@
 /* BrainDump - Clean, Modern UI */
 
+/* Google Font Import */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap');
+
 * {
   margin: 0;
   padding: 0;
@@ -12,7 +15,7 @@ body {
   height: 100%;
   background: transparent !important;
   overflow: hidden;
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",
     sans-serif;
   -webkit-font-smoothing: antialiased;
 }

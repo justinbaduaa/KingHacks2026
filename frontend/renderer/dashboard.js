@@ -1,4 +1,4 @@
-// SecondBrain Dashboard - Premium MVP
+// secondbrain Dashboard - Premium MVP
 
 // ===== Fallback Data =====
 const FALLBACK_TASKS = [];
@@ -27,6 +27,15 @@ const mainDashboard = document.getElementById('main-dashboard');
 const viewHome = document.getElementById('view-home');
 const viewHistory = document.getElementById('view-history');
 const viewSettings = document.getElementById('view-settings');
+
+// Tab view containers
+const listViewContainer = document.getElementById('list-view');
+const boardViewContainer = document.getElementById('board-view');
+const allItemsList = document.getElementById('all-items-list');
+
+// Current view state
+let currentTab = 'board';
+let allCards = [];
 
 // ===== Render Functions =====
 
@@ -394,6 +403,16 @@ function switchView(viewName) {
       item.classList.remove('active');
     }
   });
+  
+  // Show/hide the List/Board tabs - only visible on Home view
+  const navTabs = document.querySelector('.nav-tabs');
+  if (navTabs) {
+    if (viewName === 'home') {
+      navTabs.style.display = '';
+    } else {
+      navTabs.style.display = 'none';
+    }
+  }
 }
 
 // ===== Navigation =====
@@ -408,13 +427,13 @@ function setupNavigation() {
     });
   });
   
-  // Top tabs
+  // Top tabs - view switching (List/Board)
   const tabItems = document.querySelectorAll('.tab-item');
   tabItems.forEach(tab => {
     tab.addEventListener('click', (e) => {
       e.preventDefault();
-      tabItems.forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
+      const tabName = tab.dataset.tab;
+      switchTab(tabName);
     });
   });
   
@@ -440,13 +459,125 @@ function filterActivity(filterType) {
   });
 }
 
+// ===== Tab Switching (List/Board) =====
+function switchTab(tabName) {
+  currentTab = tabName;
+  
+  // Update tab UI
+  const tabItems = document.querySelectorAll('.tab-item');
+  tabItems.forEach(tab => {
+    if (tab.dataset.tab === tabName) {
+      tab.classList.add('active');
+    } else {
+      tab.classList.remove('active');
+    }
+  });
+  
+  // Switch views
+  if (tabName === 'list') {
+    if (listViewContainer) listViewContainer.classList.add('active');
+    if (boardViewContainer) boardViewContainer.classList.remove('active');
+    renderListView();
+  } else {
+    if (listViewContainer) listViewContainer.classList.remove('active');
+    if (boardViewContainer) boardViewContainer.classList.add('active');
+  }
+  
+  // Re-init feather icons
+  if (typeof feather !== 'undefined') {
+    feather.replace();
+  }
+}
+
+// ===== List View Rendering =====
+function renderListItem(item) {
+  const showCheck = item.type === 'task';
+  return `
+    <div class="list-item" data-id="${item.id}" data-node-id="${item.nodeId || ''}" data-type="${item.type}">
+      ${showCheck ? `
+        <button class="list-item-check" data-action="complete" title="Mark complete">
+          <i data-feather="check"></i>
+        </button>
+      ` : ''}
+      <div class="list-item-content">
+        <span class="list-item-title">${item.title}</span>
+        <div class="list-item-meta">
+          <span class="list-item-type ${item.type}">${item.type}</span>
+          <span>${item.dateLabel || ''}</span>
+          <span>${item.timeLabel || ''}</span>
+        </div>
+      </div>
+      <div class="list-item-actions">
+        <button class="list-item-action" data-action="delete" title="Delete">
+          <i data-feather="trash-2"></i>
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function renderListView() {
+  if (!allItemsList) return;
+  
+  if (allCards.length === 0) {
+    allItemsList.innerHTML = `
+      <div class="list-empty">
+        <i data-feather="inbox"></i>
+        <p>No items captured yet. Use voice capture to add tasks, reminders, notes, or calendar events.</p>
+      </div>
+    `;
+  } else {
+    // Sort by type priority: tasks first, then reminders, calendar, notes
+    const typePriority = { task: 0, reminder: 1, calendar: 2, note: 3 };
+    const sorted = [...allCards].sort((a, b) => {
+      return (typePriority[a.type] ?? 4) - (typePriority[b.type] ?? 4);
+    });
+    allItemsList.innerHTML = sorted.map(renderListItem).join('');
+  }
+  
+  if (typeof feather !== 'undefined') {
+    feather.replace();
+  }
+}
+
+// ===== Sidebar Collapse =====
+function setupSidebarCollapse() {
+  const collapseBtn = document.getElementById('collapse-sidebar');
+  const sidebar = document.querySelector('.sidebar');
+  
+  if (collapseBtn && sidebar) {
+    collapseBtn.addEventListener('click', () => {
+      const isCollapsed = sidebar.classList.toggle('collapsed');
+      
+      // Update icon - need to update the i element's data-feather attribute
+      const iconEl = collapseBtn.querySelector('i, svg');
+      if (iconEl) {
+        iconEl.setAttribute('data-feather', isCollapsed ? 'chevrons-right' : 'chevrons-left');
+      }
+      
+      // Re-render feather icons
+      if (typeof feather !== 'undefined') {
+        feather.replace();
+      }
+    });
+  }
+}
+
 function setupThemeToggle() {
   const themeBtns = document.querySelectorAll('.theme-btn');
   themeBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       themeBtns.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      // Theme switching logic can be added here
+      
+      const theme = btn.dataset.theme;
+      if (theme === 'dark') {
+        document.body.classList.add('dark-theme');
+        document.body.classList.remove('light-theme');
+      } else {
+        document.body.classList.add('light-theme');
+        document.body.classList.remove('dark-theme');
+      }
     });
   });
 }
@@ -575,6 +706,12 @@ async function loadDashboardData() {
     renderCards(notesList, noteCards, notesCount, 'No notes yet');
     renderCards(calendarList, calendarCards, calendarCount, 'No calendar items yet');
     renderActivity(activityTimeline, buildActivityFromNodes(nodes));
+    
+    // Store all cards for list view
+    allCards = cards;
+    if (currentTab === 'list') {
+      renderListView();
+    }
   } catch (err) {
     console.error('[DASHBOARD] Failed to load nodes:', err);
     renderCards(pendingList, FALLBACK_TASKS, pendingCount, 'No tasks yet');
@@ -622,12 +759,14 @@ function setupDeleteHandlers() {
     const confirmEl = document.createElement('div');
     confirmEl.className = 'card-confirm';
     confirmEl.innerHTML = `
-      <span>Confirm delete</span>
-      <button type="button" class="confirm-action" data-confirm="delete">Check</button>
-      <button type="button" class="confirm-cancel" data-confirm="cancel">Cancel</button>
+      <span>Delete this item?</span>
+      <div class="card-confirm-buttons">
+        <button type="button" class="confirm-action" data-confirm="delete">Delete</button>
+        <button type="button" class="confirm-cancel" data-confirm="cancel">Cancel</button>
+      </div>
     `;
     card.appendChild(confirmEl);
-    confirmEl.querySelector('.confirm-action')?.focus();
+    confirmEl.querySelector('.confirm-cancel')?.focus();
   });
 
   document.addEventListener('click', async (e) => {
@@ -680,6 +819,494 @@ function setupRefreshButton() {
   });
 }
 
+// ===== Complete Task Handlers =====
+function setupCompleteTaskHandlers() {
+  document.addEventListener('click', async (e) => {
+    const completeBtn = e.target.closest('[data-action="complete"]');
+    if (!completeBtn) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Find card (kanban or list item)
+    const card = completeBtn.closest('.kanban-card') || completeBtn.closest('.list-item');
+    if (!card) return;
+
+    const nodeId = card.dataset.nodeId;
+    
+    // Visual feedback - mark as completed
+    card.classList.add('completed');
+    completeBtn.style.transform = 'scale(1.2)';
+    
+    setTimeout(() => {
+      completeBtn.style.transform = '';
+    }, 200);
+
+    // If we have a backend connection, delete the completed task
+    if (nodeId && window.braindump?.deleteNode) {
+      try {
+        const result = await window.braindump.deleteNode(nodeId);
+        if (result.success) {
+          // Fade out and remove
+          card.style.transition = 'opacity 0.3s, transform 0.3s';
+          card.style.opacity = '0';
+          card.style.transform = 'translateX(20px)';
+          
+          setTimeout(() => {
+            card.remove();
+            loadDashboardData();
+          }, 300);
+        }
+      } catch (err) {
+        console.error('[DASHBOARD] Complete task failed:', err);
+        card.classList.remove('completed');
+      }
+    } else {
+      // Demo mode - just show visual completion
+      setTimeout(() => {
+        card.style.transition = 'opacity 0.3s, transform 0.3s';
+        card.style.opacity = '0';
+        card.style.transform = 'translateX(20px)';
+        
+        setTimeout(() => {
+          card.remove();
+        }, 300);
+      }, 500);
+    }
+  });
+}
+
+// ===== Shortcut Recorder =====
+const DEFAULT_SHORTCUT = 'Alt+Shift+Space';
+
+// Convert Electron accelerator format to display format
+// On Mac: Alt -> ⌥, Shift -> ⇧, Ctrl -> ⌃, Meta/Cmd -> ⌘
+// On Windows/Linux: show text (Ctrl+Shift+Space)
+function formatShortcutDisplay(accelerator) {
+  if (!accelerator) return '';
+  
+  const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+  
+  if (isMac) {
+    return accelerator
+      .replace(/CommandOrControl\+/gi, '⌘')
+      .replace(/CmdOrCtrl\+/gi, '⌘')
+      .replace(/Command\+/gi, '⌘')
+      .replace(/Cmd\+/gi, '⌘')
+      .replace(/Control\+/gi, '⌃')
+      .replace(/Ctrl\+/gi, '⌃')
+      .replace(/Alt\+/gi, '⌥')
+      .replace(/Option\+/gi, '⌥')
+      .replace(/Shift\+/gi, '⇧')
+      .replace(/Meta\+/gi, '⌘');
+  }
+  
+  return accelerator;
+}
+
+// Convert key event to Electron accelerator format
+function keyEventToAccelerator(e) {
+  const parts = [];
+  
+  // Order matters: CmdOrCtrl, Alt, Shift, then key
+  if (e.metaKey) parts.push('Meta');
+  if (e.ctrlKey) parts.push('Ctrl');
+  if (e.altKey) parts.push('Alt');
+  if (e.shiftKey) parts.push('Shift');
+  
+  // Get the actual key, not modifier
+  const key = e.key;
+  const code = e.code;
+  
+  // Ignore if only modifier keys pressed
+  if (['Control', 'Alt', 'Shift', 'Meta', 'OS'].includes(key)) {
+    return null;
+  }
+  
+  // Map common keys to Electron format
+  let keyName = key;
+  
+  if (code.startsWith('Key')) {
+    keyName = code.replace('Key', '');
+  } else if (code.startsWith('Digit')) {
+    keyName = code.replace('Digit', '');
+  } else if (code === 'Space') {
+    keyName = 'Space';
+  } else if (key === 'ArrowUp') {
+    keyName = 'Up';
+  } else if (key === 'ArrowDown') {
+    keyName = 'Down';
+  } else if (key === 'ArrowLeft') {
+    keyName = 'Left';
+  } else if (key === 'ArrowRight') {
+    keyName = 'Right';
+  } else if (key.length === 1) {
+    keyName = key.toUpperCase();
+  }
+  
+  parts.push(keyName);
+  
+  return parts.join('+');
+}
+
+function setupShortcutRecorder() {
+  const shortcutBadge = document.getElementById('shortcut-badge');
+  const shortcutDisplay = document.getElementById('shortcut-display');
+  const shortcutReset = document.getElementById('shortcut-reset');
+  const recordingModal = document.getElementById('shortcut-recording-modal');
+  const keysDisplay = document.getElementById('modal-keys-display');
+  const timerContainer = document.getElementById('modal-timer-container');
+  const timerBar = document.getElementById('modal-timer-bar');
+  const timerLabel = document.getElementById('modal-timer-label');
+  const modalCancelBtn = document.getElementById('modal-cancel-recording');
+  const modalInstruction = document.getElementById('modal-instruction');
+  
+  if (!shortcutBadge || !shortcutDisplay || !recordingModal) return;
+  
+  let isRecording = false;
+  let pressedKeys = new Set();
+  let currentAccelerator = null;
+  let holdStartTime = null;
+  let holdTimerInterval = null;
+  const HOLD_DURATION = 1000; // 1 second hold required
+  
+  // Map key codes to display symbols (Mac style)
+  function keyToSymbol(key) {
+    const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+    const keyMap = {
+      'Meta': isMac ? '⌘' : 'Win',
+      'Control': isMac ? '⌃' : 'Ctrl',
+      'Alt': isMac ? '⌥' : 'Alt',
+      'Shift': '⇧',
+      'Space': 'Space',
+      'ArrowUp': '↑',
+      'ArrowDown': '↓',
+      'ArrowLeft': '←',
+      'ArrowRight': '→',
+      'Backspace': '⌫',
+      'Delete': '⌦',
+      'Enter': '↵',
+      'Escape': 'Esc',
+      'Tab': '⇥',
+    };
+    return keyMap[key] || key.toUpperCase();
+  }
+  
+  // Build accelerator string from pressed keys
+  function buildAccelerator() {
+    const parts = [];
+    const modifiers = ['Meta', 'Control', 'Alt', 'Shift'];
+    const regularKeys = [];
+    
+    pressedKeys.forEach(key => {
+      if (modifiers.includes(key)) {
+        parts.push(key);
+      } else {
+        regularKeys.push(key);
+      }
+    });
+    
+    // Sort modifiers in standard order
+    parts.sort((a, b) => modifiers.indexOf(a) - modifiers.indexOf(b));
+    
+    // Add regular key (should only be one)
+    if (regularKeys.length > 0) {
+      let keyName = regularKeys[0];
+      if (keyName === ' ') keyName = 'Space';
+      else if (keyName.length === 1) keyName = keyName.toUpperCase();
+      parts.push(keyName);
+    }
+    
+    return parts.join('+');
+  }
+  
+  // Update the visual key display
+  function updateKeysDisplay() {
+    if (pressedKeys.size === 0) {
+      keysDisplay.innerHTML = '<span class="waiting-text">Waiting for keys...</span>';
+      keysDisplay.classList.remove('has-keys', 'complete');
+      return;
+    }
+    
+    keysDisplay.classList.add('has-keys');
+    keysDisplay.classList.remove('complete');
+    
+    const modifiers = ['Meta', 'Control', 'Alt', 'Shift'];
+    const sortedKeys = Array.from(pressedKeys).sort((a, b) => {
+      const aIdx = modifiers.indexOf(a);
+      const bIdx = modifiers.indexOf(b);
+      if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+      if (aIdx !== -1) return -1;
+      if (bIdx !== -1) return 1;
+      return 0;
+    });
+    
+    const html = sortedKeys.map((key, idx) => {
+      const symbol = keyToSymbol(key);
+      const plus = idx < sortedKeys.length - 1 ? '<span class="key-plus">+</span>' : '';
+      return `<span class="key-pill">${symbol}</span>${plus}`;
+    }).join('');
+    
+    keysDisplay.innerHTML = html;
+  }
+  
+  // Start the hold timer
+  function startHoldTimer() {
+    holdStartTime = Date.now();
+    timerContainer.classList.add('active');
+    timerLabel.classList.add('visible');
+    timerLabel.classList.remove('success');
+    timerLabel.textContent = 'Hold for 1 second to save';
+    
+    holdTimerInterval = setInterval(() => {
+      const elapsed = Date.now() - holdStartTime;
+      const progress = Math.min((elapsed / HOLD_DURATION) * 100, 100);
+      timerBar.style.width = `${progress}%`;
+      
+      if (progress >= 100) {
+        // Timer complete - save the shortcut
+        clearInterval(holdTimerInterval);
+        holdTimerInterval = null;
+        
+        keysDisplay.classList.add('complete');
+        timerLabel.textContent = 'Saved!';
+        timerLabel.classList.add('success');
+        
+        // Save after a brief visual confirmation
+        setTimeout(() => {
+          hideModal(true);
+        }, 300);
+      }
+    }, 50);
+  }
+  
+  // Stop/reset the hold timer
+  function stopHoldTimer() {
+    if (holdTimerInterval) {
+      clearInterval(holdTimerInterval);
+      holdTimerInterval = null;
+    }
+    holdStartTime = null;
+    timerBar.style.width = '0%';
+    timerContainer.classList.remove('active');
+    timerLabel.classList.remove('visible', 'success');
+  }
+  
+  // Check if we have a valid shortcut (at least one modifier + one key)
+  function hasValidShortcut() {
+    const modifiers = ['Meta', 'Control', 'Alt', 'Shift'];
+    let hasModifier = false;
+    let hasKey = false;
+    
+    pressedKeys.forEach(key => {
+      if (modifiers.includes(key)) hasModifier = true;
+      else hasKey = true;
+    });
+    
+    return hasModifier && hasKey;
+  }
+  
+  // Load current shortcut on page load
+  async function loadShortcut() {
+    if (window.braindump?.getShortcut) {
+      try {
+        const result = await window.braindump.getShortcut();
+        if (result?.shortcut) {
+          shortcutDisplay.textContent = formatShortcutDisplay(result.shortcut);
+        }
+      } catch (err) {
+        console.error('[SHORTCUT] Failed to load:', err);
+      }
+    }
+  }
+  
+  // Show the recording modal
+  async function showModal() {
+    isRecording = true;
+    pressedKeys.clear();
+    currentAccelerator = null;
+    
+    // Pause the global shortcut so it doesn't interfere
+    if (window.braindump?.pauseShortcut) {
+      await window.braindump.pauseShortcut();
+    }
+    
+    // Reset UI
+    shortcutBadge.classList.add('recording');
+    recordingModal.classList.add('active');
+    updateKeysDisplay();
+    stopHoldTimer();
+    
+    // Re-render feather icons for the modal
+    if (typeof feather !== 'undefined') {
+      feather.replace();
+    }
+  }
+  
+  // Hide the recording modal
+  async function hideModal(saveNewShortcut = false) {
+    isRecording = false;
+    shortcutBadge.classList.remove('recording');
+    recordingModal.classList.remove('active');
+    stopHoldTimer();
+    
+    // Resume the global shortcut
+    if (window.braindump?.resumeShortcut) {
+      await window.braindump.resumeShortcut();
+    }
+    
+    // Save the captured shortcut if requested
+    if (saveNewShortcut && currentAccelerator) {
+      await saveShortcut(currentAccelerator);
+    } else {
+      loadShortcut();
+    }
+    
+    pressedKeys.clear();
+    currentAccelerator = null;
+  }
+  
+  // Save new shortcut
+  async function saveShortcut(accelerator) {
+    if (!window.braindump?.setShortcut) {
+      console.error('[SHORTCUT] No API available');
+      loadShortcut();
+      return;
+    }
+    
+    try {
+      const result = await window.braindump.setShortcut(accelerator);
+      if (result?.success) {
+        shortcutDisplay.textContent = formatShortcutDisplay(accelerator);
+        console.log('[SHORTCUT] Saved:', accelerator);
+      } else {
+        console.error('[SHORTCUT] Save failed:', result?.error);
+        shortcutDisplay.textContent = 'Failed!';
+        setTimeout(() => loadShortcut(), 1500);
+      }
+    } catch (err) {
+      console.error('[SHORTCUT] Save error:', err);
+      loadShortcut();
+    }
+  }
+  
+  // Click on badge to start recording
+  shortcutBadge.addEventListener('click', (e) => {
+    e.preventDefault();
+    if (!isRecording) {
+      showModal();
+    }
+  });
+  
+  // Cancel button in modal
+  if (modalCancelBtn) {
+    modalCancelBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      hideModal(false);
+    });
+  }
+  
+  // Click on backdrop to cancel
+  recordingModal.querySelector('.modal-backdrop')?.addEventListener('click', () => {
+    hideModal(false);
+  });
+  
+  // Keydown handler - add keys and start timer when valid
+  document.addEventListener('keydown', (e) => {
+    if (!isRecording) return;
+    
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Escape to cancel
+    if (e.key === 'Escape') {
+      hideModal(false);
+      return;
+    }
+    
+    // Normalize key name - use e.code for reliable detection
+    let keyName = e.key;
+    if (e.code === 'Space') keyName = 'Space';
+    else if (e.code.startsWith('Key')) keyName = e.code.replace('Key', '');
+    else if (e.code.startsWith('Digit')) keyName = e.code.replace('Digit', '');
+    
+    // Track modifier keys separately
+    if (e.metaKey) pressedKeys.add('Meta');
+    if (e.ctrlKey) pressedKeys.add('Control');
+    if (e.altKey) pressedKeys.add('Alt');
+    if (e.shiftKey) pressedKeys.add('Shift');
+    
+    // Add the actual key if it's not a pure modifier
+    if (!['Meta', 'Control', 'Alt', 'Shift', 'OS'].includes(e.key)) {
+      pressedKeys.add(keyName);
+    }
+    
+    // Update display
+    updateKeysDisplay();
+    
+    // Check if we have a valid shortcut and start timer
+    if (hasValidShortcut()) {
+      currentAccelerator = buildAccelerator();
+      if (!holdTimerInterval) {
+        startHoldTimer();
+      }
+    } else {
+      stopHoldTimer();
+    }
+  });
+  
+  // Keyup handler - if any key is released, reset the timer
+  document.addEventListener('keyup', (e) => {
+    if (!isRecording) return;
+    
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Remove the released key - use e.code for reliable detection
+    let keyName = e.key;
+    if (e.code === 'Space') keyName = 'Space';
+    else if (e.code.startsWith('Key')) keyName = e.code.replace('Key', '');
+    else if (e.code.startsWith('Digit')) keyName = e.code.replace('Digit', '');
+    
+    // For modifiers, check the event flags
+    if (!e.metaKey) pressedKeys.delete('Meta');
+    if (!e.ctrlKey) pressedKeys.delete('Control');
+    if (!e.altKey) pressedKeys.delete('Alt');
+    if (!e.shiftKey) pressedKeys.delete('Shift');
+    
+    // Remove the actual key
+    pressedKeys.delete(keyName);
+    pressedKeys.delete(e.key);
+    
+    // Update display
+    updateKeysDisplay();
+    
+    // Reset timer if shortcut is no longer valid
+    if (!hasValidShortcut()) {
+      stopHoldTimer();
+      currentAccelerator = null;
+    }
+  });
+  
+  // Reset button
+  if (shortcutReset) {
+    shortcutReset.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      await saveShortcut(DEFAULT_SHORTCUT);
+    });
+  }
+  
+  // Load current shortcut on init
+  loadShortcut();
+  
+  // Re-render feather icons for reset button
+  if (typeof feather !== 'undefined') {
+    feather.replace();
+  }
+}
+
 // ===== Init =====
 document.addEventListener('DOMContentLoaded', () => {
   setupNavigation();
@@ -690,6 +1317,12 @@ document.addEventListener('DOMContentLoaded', () => {
   setupSearch();
   setupRefreshButton();
   setupDeleteHandlers();
+  setupSidebarCollapse();
+  setupCompleteTaskHandlers();
+  setupShortcutRecorder();
+  
+  // Set default tab view
+  switchTab('board');
   
   // Login handlers
   if (loginBtn) {
