@@ -300,8 +300,8 @@ function hideWindow() {
   }
 }
 
-// Creates the dashboard window - frameless, floating, magical
-function createDashboardWindow() {
+// Creates the dashboard window - starts with landing page, then transitions to dashboard
+function createDashboardWindow(skipLanding = false) {
   if (dashboardWindow && !dashboardWindow.isDestroyed()) {
     dashboardWindow.show();
     dashboardWindow.focus();
@@ -324,7 +324,7 @@ function createDashboardWindow() {
     transparent: false,
     vibrancy: 'under-window', // macOS native blur
     visualEffectState: 'active',
-    backgroundColor: '#00000000',
+    backgroundColor: '#fdfbf9',
     hasShadow: true,
     roundedCorners: true,
     show: false,
@@ -335,9 +335,11 @@ function createDashboardWindow() {
     },
   });
 
-  dashboardWindow.loadFile(path.join(__dirname, "renderer", "dashboard.html"));
+  // Start with landing page or dashboard based on skipLanding flag
+  const startPage = skipLanding ? "dashboard.html" : "landing.html";
+  dashboardWindow.loadFile(path.join(__dirname, "renderer", startPage));
 
-  // Show dock icon when dashboard is open (macOS)
+  // Show dock icon when window is open (macOS)
   dashboardWindow.once('ready-to-show', () => {
     if (process.platform === 'darwin') {
       app.dock.show();
@@ -359,6 +361,13 @@ function createDashboardWindow() {
   dashboardWindow.on('closed', () => {
     dashboardWindow = null;
   });
+}
+
+// Navigate from landing page to dashboard
+function navigateToDashboard() {
+  if (dashboardWindow && !dashboardWindow.isDestroyed()) {
+    dashboardWindow.loadFile(path.join(__dirname, "renderer", "dashboard.html"));
+  }
 }
 
 // Opens the dashboard window
@@ -504,6 +513,10 @@ app.whenReady().then(async () => {
   
   ipcMain.handle("dashboard-close", () => {
     if (dashboardWindow) dashboardWindow.close();
+  });
+  
+  ipcMain.handle("navigate-to-dashboard", () => {
+    navigateToDashboard();
   });
 
   // Backend integration handlers
