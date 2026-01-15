@@ -149,21 +149,18 @@ async function ensureGoogleConnected() {
     return true;
   }
 
-  const tokens = await loginGoogleInteractive();
-  if (!tokens?.refresh_token) {
-    throw new Error("Google OAuth did not return a refresh token. Try disconnecting and re-consenting.");
+  const authResult = await loginGoogleInteractive();
+  if (!authResult?.code || !authResult?.code_verifier || !authResult?.redirect_uri) {
+    throw new Error("Google OAuth did not return an authorization code.");
   }
 
   const payload = {
-    refresh_token: tokens.refresh_token,
-    access_token: tokens.access_token,
-    access_token_expires_at: tokens.expires_at,
-    scope: tokens.scope,
-    provider_user_id: tokens.provider_user_id,
-    token_type: tokens.token_type,
+    code: authResult.code,
+    code_verifier: authResult.code_verifier,
+    redirect_uri: authResult.redirect_uri,
   };
 
-  await callApi("integrations/google/token", "POST", payload);
+  await callApi("integrations/google/code", "POST", payload);
   return true;
 }
 
