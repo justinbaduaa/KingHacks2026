@@ -1,12 +1,19 @@
 /* BrainDump - Clean, Modern UI */
 
-* { margin: 0; padding: 0; box-sizing: border-box; }
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
 
-html, body {
-  width: 100%; height: 100%;
+html,
+body {
+  width: 100%;
+  height: 100%;
   background: transparent !important;
   overflow: hidden;
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",
+    sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -45,7 +52,12 @@ html, body {
   width: 65px;
   height: 65px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 180, 200, 0.2) 0%, rgba(255, 180, 200, 0.08) 25%, rgba(255, 180, 200, 0) 45%);
+  background: radial-gradient(
+    circle,
+    rgba(255, 180, 200, 0.2) 0%,
+    rgba(255, 180, 200, 0.08) 25%,
+    rgba(255, 180, 200, 0) 45%
+  );
   z-index: 1;
   opacity: 0;
   transform: scale(1);
@@ -98,7 +110,9 @@ html, body {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .processing-text {
@@ -115,16 +129,12 @@ html, body {
   left: 50%;
   transform: translateX(-50%);
   width: 360px;
-  /* Auto height to fit content */
   z-index: 100;
-  
+
   display: flex;
   flex-direction: column;
-  /* Align to bottom so it grows upwards? No, flex column flow is top-down. 
-     Position fixed bottom anchors the *container*. 
-     We need to make sure the stack sits at bottom. */
   justify-content: flex-end;
-  
+
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.2s ease, transform 0.2s ease;
@@ -136,85 +146,119 @@ html, body {
   pointer-events: auto;
 }
 
-/* Hit area expansion */
-.cards-stack:hover::before {
-  content: '';
-  position: absolute;
-  bottom: -20px;
-  left: 0;
+/* Cards wrapper - 3D stacked container */
+.cards-wrapper {
+  position: relative;
   width: 100%;
-  height: 120%; /* Dynamic coverage */
-  background: transparent;
-  z-index: -1;
+  height: 280px; /* Fixed height for wheel effect */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  perspective: 1000px;
+  overflow: visible;
 }
 
-/* ===== Action Card (in Stack) ===== */
+/* ===== Action Card (Stacked Wheel Design) ===== */
 .action-card {
-  position: relative; /* flow naturally */
+  position: absolute;
+  bottom: 0;
+  left: 0;
   width: 100%;
-  min-height: 72px;
+  min-height: 80px;
   
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   
-  padding: 12px 16px;
+  padding: 16px 20px;
   
+  /* Dark card styling */
   background: rgba(28, 28, 30, 0.95);
   backdrop-filter: blur(40px) saturate(180%);
   -webkit-backdrop-filter: blur(40px) saturate(180%);
-  border: 0.5px solid rgba(255, 255, 255, 0.08);
-  border-radius: 16px;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+  border: 0.5px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  box-shadow: 
+    0 4px 24px rgba(0, 0, 0, 0.4),
+    0 8px 32px rgba(0, 0, 0, 0.2);
   
-  /* Transition margins for fan effect */
-  transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
-              
-  transform-origin: center center;
+  /* Smooth wheel rotation transition */
+  transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transform-origin: center bottom;
   
-  /* Collapsed state: Negative margin to pull next card up */
-  margin-bottom: -62px; 
+  /* Default hidden state */
+  opacity: 0;
+  transform: translateY(-200px) scale(0.7);
+  pointer-events: none;
+  filter: blur(4px);
 }
 
-/* Reset last card margin so it doesn't pull nothing */
-.action-card.last-card {
-  margin-bottom: 0;
-}
-
-/* Stacking Order & Scale */
-.action-card:nth-child(1) { z-index: 3; transform: scale(1); }
-.action-card:nth-child(2) { z-index: 2; transform: scale(0.96); opacity: 0.8; }
-.action-card:nth-child(3) { z-index: 1; transform: scale(0.92); opacity: 0.6; }
-
-/* Fanning Effect - On Hover */
-/* Switch to positive spacing */
-.cards-stack:hover .action-card {
-  margin-bottom: 12px;
-  transform: scale(1);
+/* Focused card - front and center */
+.action-card.focused {
+  z-index: 10;
   opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+  filter: blur(0);
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.5),
+    0 16px 48px rgba(0, 0, 0, 0.3);
 }
 
-/* Hovering specific cards highlights them */
-.action-card:hover {
-  background: rgba(40, 40, 42, 1);
-  border-color: rgba(255, 255, 255, 0.2);
+/* Card behind focused (1 position back) */
+.action-card.behind-1 {
+  z-index: 9;
+  opacity: 0.7;
+  transform: translateY(-70px) scale(0.92);
+  pointer-events: none;
+  filter: blur(1px);
 }
 
-/* Simple icon container */
+/* Card 2 positions back */
+.action-card.behind-2 {
+  z-index: 8;
+  opacity: 0.4;
+  transform: translateY(-120px) scale(0.84);
+  pointer-events: none;
+  filter: blur(2px);
+}
+
+/* Card 3+ positions back */
+.action-card.behind-3 {
+  z-index: 7;
+  opacity: 0.2;
+  transform: translateY(-155px) scale(0.76);
+  pointer-events: none;
+  filter: blur(3px);
+}
+
+/* Cards that are ahead (below focused, hidden) */
+.action-card.ahead {
+  z-index: 5;
+  opacity: 0;
+  transform: translateY(50px) scale(0.9);
+  pointer-events: none;
+  filter: blur(2px);
+}
+
+/* Icon styling for dark cards */
 .action-icon {
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.06);
-  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
   flex-shrink: 0;
+  transition: all 0.3s ease;
 }
 
 .action-icon svg {
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
   stroke: rgba(255, 255, 255, 0.7);
   fill: none;
   stroke-width: 1.5;
@@ -225,14 +269,14 @@ html, body {
   background: rgba(255, 179, 64, 0.15);
 }
 .action-icon[data-type="reminder"] svg {
-  stroke: #FFB340;
+  stroke: #ffb340;
 }
 
 .action-icon[data-type="calendar"] {
   background: rgba(90, 200, 250, 0.15);
 }
 .action-icon[data-type="calendar"] svg {
-  stroke: #5AC8FA;
+  stroke: #5ac8fa;
 }
 
 .action-icon[data-type="todo"],
@@ -241,7 +285,7 @@ html, body {
 }
 .action-icon[data-type="todo"] svg,
 .action-icon[data-type="task"] svg {
-  stroke: #34C759;
+  stroke: #34c759;
 }
 
 .action-icon[data-type="note"],
@@ -250,21 +294,21 @@ html, body {
 }
 .action-icon[data-type="note"] svg,
 .action-icon[data-type="notes"] svg {
-  stroke: #AF82FF;
+  stroke: #af82ff;
 }
 
 .action-icon[data-type="event"] {
   background: rgba(255, 214, 10, 0.15);
 }
 .action-icon[data-type="event"] svg {
-  stroke: #FFD60A;
+  stroke: #ffd60a;
 }
 
 .action-icon[data-type="meeting"] {
   background: rgba(100, 210, 255, 0.15);
 }
 .action-icon[data-type="meeting"] svg {
-  stroke: #64D2FF;
+  stroke: #64d2ff;
 }
 
 .action-content {
@@ -273,18 +317,18 @@ html, body {
 }
 
 .action-type {
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.3px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
   color: rgba(255, 255, 255, 0.4);
-  margin-bottom: 2px;
+  margin-bottom: 4px;
   text-transform: uppercase;
 }
 
 .action-text {
-  font-size: 14px;
-  font-weight: 400;
-  color: rgba(255, 255, 255, 0.88);
+  font-size: 15px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
   line-height: 1.4;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -298,56 +342,59 @@ html, body {
 /* Action Buttons Container */
 .action-buttons {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   flex-shrink: 0;
   opacity: 0;
-  transition: opacity 0.15s ease;
+  transition: opacity 0.2s ease;
 }
 
-.action-card:hover .action-buttons {
+/* Show buttons on focused card */
+.action-card.focused .action-buttons {
   opacity: 1;
 }
 
 .action-buttons button {
-  width: 28px;
-  height: 28px;
+  width: 36px;
+  height: 36px;
   border: none;
-  border-radius: 8px;
+  border-radius: 10px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s ease;
+  transition: all 0.2s ease;
 }
 
 .btn-approve {
-  background: rgba(52, 199, 89, 0.15);
+  background: rgba(52, 199, 89, 0.12);
 }
 
 .btn-approve:hover {
-  background: rgba(52, 199, 89, 0.4);
+  background: rgba(52, 199, 89, 0.25);
+  transform: scale(1.05);
 }
 
 .btn-approve svg {
-  width: 14px;
-  height: 14px;
-  stroke: #34C759;
+  width: 18px;
+  height: 18px;
+  stroke: #34c759;
   fill: none;
   stroke-width: 2.5;
 }
 
 .btn-dismiss {
-  background: rgba(255, 69, 58, 0.15);
+  background: rgba(255, 69, 58, 0.12);
 }
 
 .btn-dismiss:hover {
-  background: rgba(255, 69, 58, 0.4);
+  background: rgba(255, 69, 58, 0.25);
+  transform: scale(1.05);
 }
 
 .btn-dismiss svg {
-  width: 14px;
-  height: 14px;
-  stroke: #FF453A;
+  width: 18px;
+  height: 18px;
+  stroke: #ff453a;
   fill: none;
   stroke-width: 2.5;
 }
@@ -419,20 +466,32 @@ html, body {
 
 /* Success glow effect */
 .action-card.approved::before {
-  content: '';
+  content: "";
   position: absolute;
   inset: -2px;
   border-radius: 18px;
-  background: linear-gradient(90deg, rgba(52, 199, 89, 0.3), rgba(52, 199, 89, 0));
+  background: linear-gradient(
+    90deg,
+    rgba(52, 199, 89, 0.3),
+    rgba(52, 199, 89, 0)
+  );
   opacity: 0;
   z-index: -1;
   animation: successGlow 0.4s ease-out forwards;
 }
 
 @keyframes successGlow {
-  0% { opacity: 0; transform: scaleX(0.9); }
-  40% { opacity: 1; }
-  100% { opacity: 0; transform: scaleX(1.05); }
+  0% {
+    opacity: 0;
+    transform: scaleX(0.9);
+  }
+  40% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scaleX(1.05);
+  }
 }
 
 /* Dismiss: "Poof" explosion animation */
@@ -474,7 +533,11 @@ html, body {
 
 /* Poof particles */
 .particle.poof {
-  background: radial-gradient(circle, rgba(255, 69, 58, 0.9) 0%, rgba(255, 69, 58, 0) 70%);
+  background: radial-gradient(
+    circle,
+    rgba(255, 69, 58, 0.9) 0%,
+    rgba(255, 69, 58, 0) 70%
+  );
   animation: poofParticle 0.6s ease-out forwards;
 }
 
@@ -529,7 +592,7 @@ html, body {
 .check-burst svg {
   width: 100%;
   height: 100%;
-  stroke: #34C759;
+  stroke: #34c759;
   fill: none;
   stroke-width: 3;
   animation: checkBurst 0.4s ease-out forwards;
@@ -590,7 +653,7 @@ html, body {
   height: 4px;
   align-self: center;
   margin-top: 16px; /* Spacing from cards */
-  
+
   /* Track Styling */
   background: rgba(255, 255, 255, 0.15);
   border-radius: 10px;
@@ -600,7 +663,7 @@ html, body {
 
 /* The filling part of the bar */
 .loading-bar::after {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: 0;
@@ -611,8 +674,12 @@ html, body {
 }
 
 @keyframes countdown {
-  from { width: 100%; }
-  to { width: 0%; }
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
 }
 
 /* Apply animation to the pseudo-element fill */
@@ -631,6 +698,42 @@ html, body {
   animation-play-state: paused;
 }
 
+/* ===== Progress Bar Indicator ===== */
+.progress-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 0;
+  margin-top: 8px;
+  transition: opacity 0.3s ease;
+}
+
+.progress-bar.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.progress-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.progress-dot:hover {
+  background: rgba(255, 255, 255, 0.4);
+  transform: scale(1.2);
+}
+
+.progress-dot.active {
+  width: 20px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.6);
+}
+
 /* ===== Expired Message ===== */
 .expired-message {
   display: none;
@@ -639,14 +742,14 @@ html, body {
   gap: 12px;
   padding: 20px 24px;
   margin-top: 16px;
-  
+
   background: rgba(28, 28, 30, 0.95);
   backdrop-filter: blur(40px) saturate(180%);
   -webkit-backdrop-filter: blur(40px) saturate(180%);
   border: 0.5px solid rgba(255, 255, 255, 0.08);
   border-radius: 16px;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.4);
-  
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+
   animation: fadeIn 0.3s ease forwards;
 }
 
@@ -655,8 +758,14 @@ html, body {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .expired-message-text {
@@ -697,7 +806,7 @@ html, body {
 }
 
 .expired-countdown-bar::after {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: 0;
@@ -712,8 +821,12 @@ html, body {
 }
 
 @keyframes expiredCountdown {
-  from { width: 100%; }
-  to { width: 0%; }
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
 }
 
 /* Pause countdown on hover */
@@ -738,7 +851,7 @@ html, body {
 .dashboard-container.hidden {
   opacity: 0;
   pointer-events: none;
-  display: none; 
+  display: none;
 }
 
 /* ===== Login View ===== */
@@ -918,7 +1031,7 @@ html, body {
 .avatar {
   width: 36px;
   height: 36px;
-  background: linear-gradient(135deg, #FFB4C8, #AF82FF);
+  background: linear-gradient(135deg, #ffb4c8, #af82ff);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -1049,10 +1162,22 @@ html, body {
   flex-shrink: 0;
 }
 
-.dash-card-icon.task { background: rgba(52, 199, 89, 0.1); color: #34C759; }
-.dash-card-icon.calendar { background: rgba(90, 200, 250, 0.1); color: #5AC8FA; }
-.dash-card-icon.reminder { background: rgba(255, 179, 64, 0.1); color: #FFB340; }
-.dash-card-icon.note { background: rgba(175, 130, 255, 0.1); color: #AF82FF; }
+.dash-card-icon.task {
+  background: rgba(52, 199, 89, 0.1);
+  color: #34c759;
+}
+.dash-card-icon.calendar {
+  background: rgba(90, 200, 250, 0.1);
+  color: #5ac8fa;
+}
+.dash-card-icon.reminder {
+  background: rgba(255, 179, 64, 0.1);
+  color: #ffb340;
+}
+.dash-card-icon.note {
+  background: rgba(175, 130, 255, 0.1);
+  color: #af82ff;
+}
 
 .dash-card-body {
   flex: 1;
@@ -1100,7 +1225,7 @@ html, body {
 .dashboard-container.hidden {
   opacity: 0;
   pointer-events: none;
-  display: none; 
+  display: none;
 }
 
 /* ===== Login View ===== */
@@ -1280,7 +1405,7 @@ html, body {
 .avatar {
   width: 36px;
   height: 36px;
-  background: linear-gradient(135deg, #FFB4C8, #AF82FF);
+  background: linear-gradient(135deg, #ffb4c8, #af82ff);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -1412,10 +1537,22 @@ html, body {
   flex-shrink: 0;
 }
 
-.dash-card-icon.task { background: rgba(52, 199, 89, 0.1); color: #34C759; }
-.dash-card-icon.calendar { background: rgba(90, 200, 250, 0.1); color: #5AC8FA; }
-.dash-card-icon.reminder { background: rgba(255, 179, 64, 0.1); color: #FFB340; }
-.dash-card-icon.note { background: rgba(175, 130, 255, 0.1); color: #AF82FF; }
+.dash-card-icon.task {
+  background: rgba(52, 199, 89, 0.1);
+  color: #34c759;
+}
+.dash-card-icon.calendar {
+  background: rgba(90, 200, 250, 0.1);
+  color: #5ac8fa;
+}
+.dash-card-icon.reminder {
+  background: rgba(255, 179, 64, 0.1);
+  color: #ffb340;
+}
+.dash-card-icon.note {
+  background: rgba(175, 130, 255, 0.1);
+  color: #af82ff;
+}
 
 .dash-card-body {
   flex: 1;

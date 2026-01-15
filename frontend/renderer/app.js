@@ -16,6 +16,8 @@ const brainContainer = document.getElementById('brain-container');
 const pulseRing = document.getElementById('pulse-ring');
 const brainIcon = document.getElementById('brain-icon');
 const cardsStack = document.getElementById('cards-stack');
+const cardsWrapper = document.getElementById('cards-wrapper');
+const progressBar = document.getElementById('progress-bar');
 const loadingBar = document.querySelector('.loading-bar');
 const expiredMessage = document.getElementById('expired-message');
 const processingContainer = document.getElementById('processing-container');
@@ -142,9 +144,11 @@ function renderCards(tasks) {
   loadingBar.offsetHeight; // Trigger reflow
   loadingBar.style.animation = '';
   
-  // Clear existing cards (keep loading bar)
-  const existingCards = cardsStack.querySelectorAll('.action-card');
+  // Clear existing cards from wrapper
+  const existingCards = cardsWrapper.querySelectorAll('.action-card');
   existingCards.forEach(card => card.remove());
+  
+  // Progress bar will be updated by updateWheelPositions
   
   // Create and append new cards (reverse order so first item is on top in DOM)
   // Actually, standard stacking context means last in DOM is on top,
@@ -188,40 +192,100 @@ function renderCards(tasks) {
       dismissCard(card, index);
     });
     
-    // Insert before loading bar
-    cardsStack.insertBefore(card, loadingBar);
+    // Append to the cards wrapper
+    cardsWrapper.appendChild(card);
   });
   
-  // Auto-select first card for keyboard navigation
-  const firstCard = cardsStack.querySelector('.action-card');
-  if (firstCard) {
-    setTimeout(() => selectCard(firstCard), 50);
-  }
+  // Apply initial wheel positions
+  focusedIndex = 0;
+  updateWheelPositions();
 }
 
-// Currently selected card (for keyboard navigation)
-let selectedCard = null;
+// Wheel navigation state
+let focusedIndex = 0;
 
-// Select a specific card
-function selectCard(card) {
-  // Remove selection from previous
-  if (selectedCard) selectedCard.classList.remove('selected');
+// Update card positions based on focused index (wheel effect)
+function updateWheelPositions() {
+  const cards = Array.from(cardsWrapper.querySelectorAll('.action-card:not(.approved):not(.dismissed)'));
   
-  selectedCard = card;
-  if (card) {
-    card.classList.add('selected');
-  }
+  cards.forEach((card, i) => {
+    // Remove all position classes
+    card.classList.remove('focused', 'behind-1', 'behind-2', 'behind-3', 'ahead', 'selected');
+    
+    const relativePos = i - focusedIndex;
+    
+    if (relativePos === 0) {
+      card.classList.add('focused', 'selected');
+    } else if (relativePos === 1) {
+      card.classList.add('behind-1');
+    } else if (relativePos === 2) {
+      card.classList.add('behind-2');
+    } else if (relativePos >= 3) {
+      card.classList.add('behind-3');
+    } else if (relativePos < 0) {
+      card.classList.add('ahead');
+    }
+  });
+  
+  // Update selectedCard reference for compatibility
+  selectedCard = cards[focusedIndex] || null;
+  
+  // Rebuild progress bar dots for visible cards only
+  progressBar.innerHTML = '';
+  cards.forEach((card, i) => {
+    const dot = document.createElement('div');
+    dot.className = 'progress-dot';
+    if (i === focusedIndex) dot.classList.add('active');
+    
+    // Click to navigate to this card
+    dot.addEventListener('click', () => {
+      focusedIndex = i;
+      updateWheelPositions();
+      
+      // Pause timer on interaction
+      if (!timerPermanentlyPaused) {
+        timerPermanentlyPaused = true;
+        cardsStack.classList.add('timer-paused');
+      }
+    });
+    
+    progressBar.appendChild(dot);
+  });
+  progressBar.classList.toggle('hidden', cards.length === 0);
 }
+
+// Move focus up/down in the wheel
+function moveFocus(direction) {
+  const cards = Array.from(cardsWrapper.querySelectorAll('.action-card:not(.approved):not(.dismissed)'));
+  if (cards.length === 0) return;
+  
+  // Pause timer on interaction
+  if (!timerPermanentlyPaused) {
+    timerPermanentlyPaused = true;
+    cardsStack.classList.add('timer-paused');
+  }
+  
+  if (direction === 'up') {
+    focusedIndex = Math.max(0, focusedIndex - 1);
+  } else {
+    focusedIndex = Math.min(cards.length - 1, focusedIndex + 1);
+  }
+  
+  updateWheelPositions();
+}
+
+// Currently selected card (for keyboard navigation compatibility)
+let selectedCard = null;
 
 // Update the last-card class on the new last visible card
 function updateLastCardClass() {
   // Remove last-card from all cards
-  cardsStack.querySelectorAll('.action-card.last-card').forEach(card => {
+  cardsWrapper.querySelectorAll('.action-card.last-card').forEach(card => {
     card.classList.remove('last-card');
   });
   
   // Find the new last visible card and add the class
-  const visibleCards = Array.from(cardsStack.querySelectorAll('.action-card:not(.approved):not(.dismissed)'));
+  const visibleCards = Array.from(cardsWrapper.querySelectorAll('.action-card:not(.approved):not(.dismissed)'));
   if (visibleCards.length > 0) {
     visibleCards[visibleCards.length - 1].classList.add('last-card');
   }
@@ -229,12 +293,12 @@ function updateLastCardClass() {
 
 // Select the next available card after an action
 function selectNextCard() {
-  // Update last-card class for proper margin handling
-  updateLastCardClass();
+  const cards = Array.from(cardsWrapper.querySelectorAll('.action-card:not(.approved):not(.dismissed)'));
   
-  const cards = Array.from(cardsStack.querySelectorAll('.action-card:not(.approved):not(.dismissed)'));
   if (cards.length > 0) {
-    selectCard(cards[0]);
+    // Keep focusedIndex in bounds
+    focusedIndex = Math.min(focusedIndex, cards.length - 1);
+    updateWheelPositions();
   } else {
     selectedCard = null;
     // All cards processed - hide window after brief delay
@@ -335,7 +399,7 @@ async function approveCard(card, index) {
   }
   
   // Check if this is the last remaining card
-  const remainingCards = cardsStack.querySelectorAll('.action-card:not(.approved):not(.dismissed)');
+  const remainingCards = cardsWrapper.querySelectorAll('.action-card:not(.approved):not(.dismissed)');
   const isLastCard = remainingCards.length === 1;
   
   // Add approved state
@@ -382,7 +446,7 @@ function dismissCard(card, index) {
   // if (task?.nodeId) { window.braindump.dismissNode(task.nodeId); }
   
   // Check if this is the last remaining card
-  const remainingCards = cardsStack.querySelectorAll('.action-card:not(.approved):not(.dismissed)');
+  const remainingCards = cardsWrapper.querySelectorAll('.action-card:not(.approved):not(.dismissed)');
   const isLastCard = remainingCards.length === 1;
   
   // Get card center for particle burst
@@ -462,38 +526,100 @@ cardsStack.addEventListener('dblclick', (e) => {
   });
 });
 
-// Hover to select a card (for Enter/Delete workflow)
-// Also permanently pauses the countdown timer
-cardsStack.addEventListener('mouseenter', (e) => {
-  // Permanently pause timer on any hover
+// Hover pauses the countdown timer
+cardsStack.addEventListener('mouseenter', () => {
   if (!timerPermanentlyPaused) {
     timerPermanentlyPaused = true;
     cardsStack.classList.add('timer-paused');
   }
-  
-  const card = e.target.closest('.action-card');
-  if (card && !card.classList.contains('approved') && !card.classList.contains('dismissed')) {
-    selectCard(card);
-  }
-}, true);
+});
 
-// Reset to first card when hover leaves the stack
-cardsStack.addEventListener('mouseleave', () => {
-  const firstCard = cardsStack.querySelector('.action-card:not(.approved):not(.dismissed)');
-  if (firstCard) {
-    selectCard(firstCard);
+// Scroll wheel navigation (velocity-aware)
+let lastScrollTime = 0;
+
+cardsStack.addEventListener('wheel', (e) => {
+  if (currentState !== State.CONFIRMED) return;
+  e.preventDefault();
+  
+  const now = Date.now();
+  // Adjust throttle based on velocity - faster scroll = less throttle
+  const velocity = Math.abs(e.deltaY);
+  const throttleMs = velocity > 50 ? 80 : 150; // Faster for quick scrolls
+  
+  if (now - lastScrollTime < throttleMs) return;
+  lastScrollTime = now;
+  
+  // Inverted: scroll down (positive deltaY) = go UP in the wheel
+  if (e.deltaY > 0) {
+    moveFocus('up');
+  } else if (e.deltaY < 0) {
+    moveFocus('down');
+  }
+}, { passive: false });
+
+// Hover-to-scroll: auto-navigate when hovering behind-cards
+let hoverScrollInterval = null;
+
+function startHoverScroll(direction) {
+  if (hoverScrollInterval) return;
+  moveFocus(direction); // Immediate first move
+  hoverScrollInterval = setInterval(() => moveFocus(direction), 400);
+}
+
+function stopHoverScroll() {
+  if (hoverScrollInterval) {
+    clearInterval(hoverScrollInterval);
+    hoverScrollInterval = null;
+  }
+}
+
+// Handle hover on behind-cards to auto-scroll
+cardsWrapper.addEventListener('mouseover', (e) => {
+  const card = e.target.closest('.action-card');
+  if (!card) return;
+  
+  if (card.classList.contains('behind-1') || 
+      card.classList.contains('behind-2') || 
+      card.classList.contains('behind-3')) {
+    startHoverScroll('down');
+  } else if (card.classList.contains('ahead')) {
+    startHoverScroll('up');
+  } else {
+    stopHoverScroll();
   }
 });
 
-// Click to select a card
+cardsWrapper.addEventListener('mouseleave', stopHoverScroll);
+
+// Stop hover scroll when leaving the stack
+cardsStack.addEventListener('mouseleave', () => {
+  stopHoverScroll();
+});
+
+// Click to focus a card in the wheel
 cardsStack.addEventListener('click', (e) => {
   const card = e.target.closest('.action-card');
   if (card && !card.classList.contains('approved') && !card.classList.contains('dismissed')) {
-    selectCard(card);
+    const index = parseInt(card.dataset.index);
+    if (!isNaN(index)) {
+      // Find this card's position in the visible cards array
+      const cards = Array.from(cardsWrapper.querySelectorAll('.action-card:not(.approved):not(.dismissed)'));
+      const cardPosition = cards.findIndex(c => c === card);
+      if (cardPosition !== -1) {
+        focusedIndex = cardPosition;
+        updateWheelPositions();
+        
+        // Pause timer on interaction
+        if (!timerPermanentlyPaused) {
+          timerPermanentlyPaused = true;
+          cardsStack.classList.add('timer-paused');
+        }
+      }
+    }
   }
 });
 
-// Keyboard shortcuts - Enter, Enter, Enter workflow
+// Keyboard shortcuts - Arrow navigation + Enter/Delete workflow
 document.addEventListener('keydown', (e) => {
   if (currentState !== State.CONFIRMED) return;
   
@@ -501,15 +627,19 @@ document.addEventListener('keydown', (e) => {
   const isEditing = document.querySelector('.action-card.editing');
   if (isEditing) return;
   
-  // Any keyboard interaction pauses the timer (user is engaging)
-  if ((e.key === 'Enter' || e.key === 'Delete' || e.key === 'Backspace') && selectedCard) {
-    if (!timerPermanentlyPaused) {
-      timerPermanentlyPaused = true;
-      cardsStack.classList.add('timer-paused');
-    }
+  // Arrow keys for wheel navigation (inverted to match visual stack)
+  // Up goes to cards stacked behind (higher index), Down goes forward (lower index)
+  if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+    e.preventDefault();
+    moveFocus('down'); // Visual up = stack behind = higher index
   }
   
-  // Enter to approve selected card
+  if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+    e.preventDefault();
+    moveFocus('up'); // Visual down = stack forward = lower index
+  }
+  
+  // Enter to approve focused card
   if (e.key === 'Enter' && selectedCard) {
     e.preventDefault();
     const index = parseInt(selectedCard.dataset.index);
@@ -518,7 +648,7 @@ document.addEventListener('keydown', (e) => {
     }
   }
   
-  // Delete or Backspace to dismiss selected card
+  // Delete or Backspace to dismiss focused card
   if ((e.key === 'Delete' || e.key === 'Backspace') && selectedCard) {
     e.preventDefault();
     const index = parseInt(selectedCard.dataset.index);
@@ -535,7 +665,7 @@ loadingBar.addEventListener('animationend', () => {
   if (currentState === State.CONFIRMED && !timerPermanentlyPaused) {
     // Timer expired without user interaction
     // Remove all task cards completely and show only the expired message
-    const cards = cardsStack.querySelectorAll('.action-card');
+    const cards = cardsWrapper.querySelectorAll('.action-card');
     cards.forEach(card => card.remove());
     loadingBar.style.display = 'none';
     expiredMessage.classList.add('visible');
