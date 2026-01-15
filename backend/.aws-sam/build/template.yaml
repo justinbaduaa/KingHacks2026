@@ -2,10 +2,18 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: Backend API
 Parameters:
-  CognitoDomainPrefix:
+  ExistingUserPoolId:
     Type: String
-    Default: kinghacks2026
-    Description: Cognito hosted UI domain prefix (must be globally unique)
+    Default: us-east-1_QUkuBfN0i
+    Description: Existing Cognito User Pool ID to use for auth
+  ExistingUserPoolClientId:
+    Type: String
+    Default: 1mvkkrd2mrmio5m8egu4i0urtr
+    Description: Existing Cognito User Pool Client ID to use for auth
+  ExistingUserPoolDomainPrefix:
+    Type: String
+    Default: kinghacks2026-evan
+    Description: Existing Cognito hosted UI domain prefix
   GoogleDesktopClientId:
     Type: String
     Default: 889539163514-10nft2cs9sg6r66ssrusa649qm82kajr.apps.googleusercontent.com
@@ -33,9 +41,7 @@ Resources:
         Authorizers:
           CognitoAuthorizer:
             UserPoolArn:
-              Fn::GetAtt:
-              - CognitoUserPool
-              - Arn
+              Fn::Sub: arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${ExistingUserPoolId}
       Cors:
         AllowMethods: '''GET,POST,PATCH,DELETE,OPTIONS'''
         AllowHeaders: '''Content-Type,Authorization'''
@@ -72,50 +78,6 @@ Resources:
         KeyType: HASH
       - AttributeName: sk
         KeyType: RANGE
-  CognitoUserPool:
-    Type: AWS::Cognito::UserPool
-    Properties:
-      UserPoolName:
-        Fn::Sub: ${AWS::StackName}-user-pool
-      UsernameAttributes:
-      - email
-      AutoVerifiedAttributes:
-      - email
-      Policies:
-        PasswordPolicy:
-          MinimumLength: 8
-          RequireLowercase: true
-          RequireUppercase: true
-          RequireNumbers: true
-          RequireSymbols: false
-  CognitoUserPoolDomain:
-    Type: AWS::Cognito::UserPoolDomain
-    Properties:
-      Domain:
-        Ref: CognitoDomainPrefix
-      UserPoolId:
-        Ref: CognitoUserPool
-  CognitoUserPoolClient:
-    Type: AWS::Cognito::UserPoolClient
-    Properties:
-      UserPoolId:
-        Ref: CognitoUserPool
-      ClientName:
-        Fn::Sub: ${AWS::StackName}-user-pool-client
-      GenerateSecret: false
-      AllowedOAuthFlowsUserPoolClient: true
-      AllowedOAuthFlows:
-      - code
-      AllowedOAuthScopes:
-      - email
-      - openid
-      - profile
-      SupportedIdentityProviders:
-      - COGNITO
-      CallbackURLs:
-      - http://127.0.0.1:4387/callback
-      LogoutURLs:
-      - http://127.0.0.1:4387/logout
   CognitoIdentityPool:
     Type: AWS::Cognito::IdentityPool
     Properties:
@@ -124,11 +86,9 @@ Resources:
       AllowUnauthenticatedIdentities: false
       CognitoIdentityProviders:
       - ClientId:
-          Ref: CognitoUserPoolClient
+          Ref: ExistingUserPoolClientId
         ProviderName:
-          Fn::GetAtt:
-          - CognitoUserPool
-          - ProviderName
+          Fn::Sub: cognito-idp.${AWS::Region}.amazonaws.com/${ExistingUserPoolId}
   CognitoIdentityPoolAuthenticatedRole:
     Type: AWS::IAM::Role
     Properties:
@@ -326,11 +286,11 @@ Outputs:
   CognitoUserPoolId:
     Description: Cognito User Pool ID
     Value:
-      Ref: CognitoUserPool
+      Ref: ExistingUserPoolId
   CognitoUserPoolClientId:
     Description: Cognito User Pool Client ID
     Value:
-      Ref: CognitoUserPoolClient
+      Ref: ExistingUserPoolClientId
   CognitoIdentityPoolId:
     Description: Cognito Identity Pool ID
     Value:
@@ -338,7 +298,7 @@ Outputs:
   CognitoHostedUiDomain:
     Description: Cognito Hosted UI domain
     Value:
-      Fn::Sub: https://${CognitoDomainPrefix}.auth.${AWS::Region}.amazoncognito.com
+      Fn::Sub: https://${ExistingUserPoolDomainPrefix}.auth.${AWS::Region}.amazoncognito.com
   IntegrationsTableName:
     Description: Integrations DynamoDB table name
     Value:

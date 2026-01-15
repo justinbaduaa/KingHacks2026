@@ -1,13 +1,13 @@
 version = 0.1
 
 [default.deploy.parameters]
-stack_name = "second-brain-backend-evan"
+stack_name = "second-brain-evan"
 resolve_s3 = true
-s3_prefix = "second-brain-backend-evan"
+s3_prefix = "second-brain-evan"
 confirm_changeset = true
 capabilities = "CAPABILITY_NAMED_IAM"
 disable_rollback = true
-parameter_overrides = "CognitoDomainPrefix=\"kinghacks2026-evan\" GoogleDesktopClientId=\"889539163514-10nft2cs9sg6r66ssrusa649qm82kajr.apps.googleusercontent.com\""
+parameter_overrides = "ExistingUserPoolId=\"us-east-1_QUkuBfN0i\" ExistingUserPoolClientId=\"1mvkkrd2mrmio5m8egu4i0urtr\" ExistingUserPoolDomainPrefix=\"kinghacks2026-evan\" GoogleDesktopClientId=\"889539163514-10nft2cs9sg6r66ssrusa649qm82kajr.apps.googleusercontent.com\""
 image_repositories = []
 
 [default.global.parameters]
