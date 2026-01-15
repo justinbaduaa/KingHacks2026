@@ -594,6 +594,9 @@ app.whenReady().then(async () => {
       };
       
       const result = await callApi(endpoint, "POST", body);
+      if (result.statusCode >= 300) {
+        return { success: false, ...result };
+      }
       return { success: true, ...result };
     } catch (err) {
       return { success: false, error: err.message };

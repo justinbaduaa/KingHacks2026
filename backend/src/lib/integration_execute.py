@@ -1,11 +1,15 @@
 """Integration execution entry point for node-based actions."""
 
+import logging
 import os
 
 from lib.calendar_execute import CalendarExecutionError, execute_calendar_event
 from lib.dynamo import get_item
 from lib.google_calendar import CalendarError
 from lib.oauth_refresh import refresh_access_token
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 
 class IntegrationExecutionError(Exception):
@@ -53,6 +57,9 @@ def execute_node_integration(
 ) -> tuple[dict, dict | None]:
     """Execute a node integration by type and return updated node + provider response."""
     node_type = node.get("node_type")
+    node_id = node.get("node_id")
+
+    logger.info("execute_node_integration start node_type=%s node_id=%s", node_type, node_id)
 
     if node_type != "calendar_placeholder":
         if require_supported:
@@ -65,6 +72,8 @@ def execute_node_integration(
 
     try:
         updated_node, event_response = execute_calendar_event(access_token, node)
+        event_id = (event_response or {}).get("id")
+        logger.info("execute_node_integration complete node_id=%s event_id=%s", node_id, event_id)
         return updated_node, event_response
     except CalendarExecutionError as exc:
         raise IntegrationExecutionError(str(exc), exc.status_code)

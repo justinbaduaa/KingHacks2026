@@ -70,9 +70,17 @@ def handler(event, context):
 
     # Execute integrations before persisting
     try:
-        node, _event_response = execute_node_integration(
+        node, event_response = execute_node_integration(
             user_id, node, require_supported=False
         )
+        if event_response:
+            logger.info(json.dumps({
+                "action": "integration_executed",
+                "node_id": node_id,
+                "node_type": node.get("node_type"),
+                "provider_event_id": event_response.get("id"),
+                "provider_status": event_response.get("status"),
+            }))
     except IntegrationExecutionError as exc:
         return error_response(exc.status_code, str(exc))
     
