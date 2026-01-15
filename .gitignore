@@ -43,3 +43,6 @@ coverage/
 
 # AWS/credentials (if any local config)
 *.pem
+
+# AWS SAM build artifacts (machine-specific paths)
+.aws-sam/
