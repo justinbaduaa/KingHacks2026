@@ -6,8 +6,8 @@ resolve_s3 = true
 s3_prefix = "second-brain-backend-evan"
 confirm_changeset = true
 capabilities = "CAPABILITY_NAMED_IAM"
-disable_rollback = true
-parameter_overrides = "CognitoDomainPrefix=\"kinghacks2026-evan-v2\" GoogleDesktopClientId=\"889539163514-10nft2cs9sg6r66ssrusa649qm82kajr.apps.googleusercontent.com\""
+disable_rollback = false
+parameter_overrides = "CognitoDomainPrefix=\"kinghacks2026-evan\" GoogleDesktopClientId=\"694425355162-33sjvpg98m6p3mtpa616p8ql5649gig4.apps.googleusercontent.com\""
 image_repositories = []
 
 [default.global.parameters]

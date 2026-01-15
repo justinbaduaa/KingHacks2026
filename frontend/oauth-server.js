@@ -16,13 +16,26 @@ const http = require("http");
 const crypto = require("crypto");
 const { URL } = require("url");
 const { shell } = require("electron");
+const { loadConfig } = require("./auth");
 
 const OAUTH_PORT = 4387;
 const REDIRECT_URI = `http://127.0.0.1:${OAUTH_PORT}`;
 
-// Google OAuth Client credentials (loaded from environment variables)
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
-const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+// Google OAuth Client credentials (loaded from auth.config.json)
+function getGoogleConfig() {
+  const config = loadConfig();
+  const google = config.google || {};
+  return {
+    clientId: google.clientId || process.env.GOOGLE_CLIENT_ID,
+    clientSecret: google.clientSecret || process.env.GOOGLE_CLIENT_SECRET,
+  };
+}
+
+const googleConfig = getGoogleConfig();
+const GOOGLE_CLIENT_ID = googleConfig.clientId;
+const GOOGLE_CLIENT_SECRET = googleConfig.clientSecret;
+
+console.log("[OAUTH] Loaded Google client ID:", GOOGLE_CLIENT_ID ? GOOGLE_CLIENT_ID.substring(0, 20) + "..." : "MISSING");
 
 // Scopes for Gmail and Calendar access
 const SCOPES = [

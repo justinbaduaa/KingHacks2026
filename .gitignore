@@ -9,6 +9,9 @@ node_modules/
 .env.local
 .env.*.local
 
+# Auth config with secrets (use auth.config.example.json as template)
+frontend/auth.config.json
+
 # OS generated files
 .DS_Store
 Thumbs.db

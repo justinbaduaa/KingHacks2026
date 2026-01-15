@@ -201,6 +201,7 @@ async function executeActionLocally(task, executionMode = 'execute') {
 
     // Calendar actions (calendar, meeting, event)
     if (['calendar', 'meeting', 'event'].includes(taskType)) {
+      console.log('[Google Calendar] Creating event:', task.actionData.title || task.text);
       const result = await window.braindump.executeCalendarLocal({
         accessToken,
         action: {
@@ -211,6 +212,11 @@ async function executeActionLocally(task, executionMode = 'execute') {
           attendees: task.actionData.attendees || [],
         },
       });
+      if (result.success) {
+        console.log('[Google Calendar] Event created:', result.eventId || result.id);
+      } else {
+        console.error('[Google Calendar] Failed to create event:', result.error);
+      }
       return result;
     }
 
@@ -725,11 +731,23 @@ async function approveCard(card, index, executionMode = 'execute') {
     })();
   } else if (googleConnected && ['email', 'gmail', 'calendar', 'meeting', 'event'].includes(taskType)) {
     // Google-connected action types (email, calendar)
+    if (['calendar', 'meeting', 'event'].includes(taskType)) {
+      console.log('[Action] Routing to Google Calendar:', task.text);
+    } else {
+      console.log('[Action] Routing to Gmail:', task.text);
+    }
     executeActionOnBackend(task, executionMode).then(result => {
-      if (!result.success) {
+      if (result.success) {
+        if (['calendar', 'meeting', 'event'].includes(taskType)) {
+          console.log('[Google Calendar] Event created successfully');
+        }
+      } else {
         console.warn('[Action] Backend execution failed, but card already approved');
       }
     });
+  } else if (!googleConnected && ['calendar', 'meeting', 'event'].includes(taskType)) {
+    // Calendar task but Google not connected - warn user
+    console.warn('[Action] Calendar event detected but Google not connected! Connect Google to add to calendar.');
   } else if (['todo', 'task', 'note'].includes(taskType)) {
     // Local actions - store in backend if authenticated
     if (cognitoToken) {
