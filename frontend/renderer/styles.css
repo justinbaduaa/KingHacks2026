@@ -633,16 +633,25 @@ body {
   opacity: 1;
 }
 
-.inline-edit-input {
-  width: 100%;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(100, 210, 255, 0.5);
-  border-radius: 4px;
-  padding: 4px 8px;
-  font-size: 14px;
-  font-family: inherit;
-  color: rgba(255, 255, 255, 0.95);
+/* Inline edit styling */
+.action-text.is-editing {
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
+  display: block;
+  cursor: text;
   outline: none;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+  padding: 0 4px; /* Minimal padding for caret not to hit edges */
+  min-height: 1.4em;
+  box-shadow: 0 0 0 1px rgba(100, 210, 255, 0.3);
+}
+
+.action-card.editing {
+  /* Ensure card can thrive while editing content that might expand */
+  z-index: 20 !important; 
+  height: auto;
+  min-height: 80px;
 }
 
 /* ===== Loading Pill (Redesigned) ===== */

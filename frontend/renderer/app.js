@@ -479,6 +479,7 @@ function dismissCard(card, index) {
 }
 
 // Inline editing - double-click to edit
+// Inline editing - double-click to edit
 cardsStack.addEventListener('dblclick', (e) => {
   const textEl = e.target.closest('.action-text');
   if (!textEl) return;
@@ -486,23 +487,42 @@ cardsStack.addEventListener('dblclick', (e) => {
   const card = textEl.closest('.action-card');
   if (card.classList.contains('approved') || card.classList.contains('editing')) return;
   
+  // Enter editing mode
   card.classList.add('editing');
+  textEl.classList.add('is-editing');
+  textEl.contentEditable = 'true';
   const originalText = textEl.textContent;
   
-  const input = document.createElement('input');
-  input.type = 'text';
-  input.className = 'inline-edit-input';
-  input.value = originalText;
+  // Focus and place cursor at click position
+  textEl.focus();
+  // Use caretRangeFromPoint to respect the user's specific click location
+  if (document.caretRangeFromPoint) {
+    const clickRange = document.caretRangeFromPoint(e.clientX, e.clientY);
+    if (clickRange && textEl.contains(clickRange.startContainer)) {
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(clickRange);
+    }
+  }
   
-  textEl.textContent = '';
-  textEl.appendChild(input);
-  input.focus();
-  input.select();
-  
+  // Save function
   const saveEdit = () => {
-    const newText = input.value.trim() || originalText;
-    textEl.textContent = newText;
+    // Prevent double-fires
+    if (!card.classList.contains('editing')) return;
+    
+    const newText = textEl.textContent.trim() || originalText;
+    
+    // Cleanup editing state
+    textEl.contentEditable = 'false';
+    textEl.classList.remove('is-editing');
     card.classList.remove('editing');
+    
+    // If empty text was trimmed out, restore
+    textEl.textContent = newText;
+    
+    // Remove listeners
+    textEl.removeEventListener('blur', saveEdit);
+    textEl.removeEventListener('keydown', handleKeydown);
     
     // Update current data
     const index = parseInt(card.dataset.index);
@@ -514,16 +534,21 @@ cardsStack.addEventListener('dblclick', (e) => {
     }
   };
   
-  input.addEventListener('blur', saveEdit);
-  input.addEventListener('keydown', (e) => {
+  // Keydown handler
+  const handleKeydown = (e) => {
     if (e.key === 'Enter') {
-      e.preventDefault();
-      input.blur();
+      e.preventDefault(); // Prevent new line
+      saveEdit();
     } else if (e.key === 'Escape') {
-      input.value = originalText;
-      input.blur();
+      e.preventDefault();
+      // Revert text
+      textEl.textContent = originalText;
+      saveEdit(); // Logic to cleanup
     }
-  });
+  };
+  
+  textEl.addEventListener('blur', saveEdit);
+  textEl.addEventListener('keydown', handleKeydown);
 });
 
 // Hover pauses the countdown timer
