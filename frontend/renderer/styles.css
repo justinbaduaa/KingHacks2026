@@ -168,20 +168,21 @@ body {
   bottom: 0;
   left: 0;
   width: 100%;
-  min-height: 80px;
+  min-height: 140px; /* Increased height for new layout */
   
   display: flex;
-  align-items: center;
-  gap: 14px;
+  flex-direction: column; /* Changed to column */
+  align-items: stretch;   /* Stretch content */
+  gap: 12px;
   
-  padding: 16px 20px;
+  padding: 20px 24px;
   
   /* Dark card styling */
   background: rgba(28, 28, 30, 0.95);
   backdrop-filter: blur(40px) saturate(180%);
   -webkit-backdrop-filter: blur(40px) saturate(180%);
   border: 0.5px solid rgba(255, 255, 255, 0.1);
-  border-radius: 20px;
+  border-radius: 24px; /* Slightly larger radius */
   box-shadow: 
     0 4px 24px rgba(0, 0, 0, 0.4),
     0 8px 32px rgba(0, 0, 0, 0.2);
@@ -195,6 +196,7 @@ body {
   transform: translateY(-200px) scale(0.7);
   pointer-events: none;
   filter: blur(4px);
+  overflow: hidden; /* For animations */
 }
 
 /* Focused card - front and center */
@@ -213,7 +215,7 @@ body {
 .action-card.behind-1 {
   z-index: 9;
   opacity: 0.7;
-  transform: translateY(-70px) scale(0.92);
+  transform: translateY(-80px) scale(0.92);
   pointer-events: none;
   filter: blur(1px);
 }
@@ -222,7 +224,7 @@ body {
 .action-card.behind-2 {
   z-index: 8;
   opacity: 0.4;
-  transform: translateY(-120px) scale(0.84);
+  transform: translateY(-140px) scale(0.84);
   pointer-events: none;
   filter: blur(2px);
 }
@@ -231,7 +233,7 @@ body {
 .action-card.behind-3 {
   z-index: 7;
   opacity: 0.2;
-  transform: translateY(-155px) scale(0.76);
+  transform: translateY(-180px) scale(0.76);
   pointer-events: none;
   filter: blur(3px);
 }
@@ -240,164 +242,170 @@ body {
 .action-card.ahead {
   z-index: 5;
   opacity: 0;
-  transform: translateY(50px) scale(0.9);
+  transform: translateY(60px) scale(0.9);
   pointer-events: none;
   filter: blur(2px);
 }
 
-/* Icon styling for dark cards */
-.action-icon {
-  width: 40px;
-  height: 40px;
-  min-width: 40px;
+/* New Dashboard-Style Card Content */
+.card-header {
   display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.card-pill {
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  flex-shrink: 0;
-  transition: all 0.3s ease;
-}
-
-.action-icon svg {
-  width: 20px;
-  height: 20px;
-  stroke: rgba(255, 255, 255, 0.7);
-  fill: none;
-  stroke-width: 1.5;
-}
-
-/* Type-specific icon colors */
-.action-icon[data-type="reminder"] {
-  background: rgba(255, 179, 64, 0.15);
-}
-.action-icon[data-type="reminder"] svg {
-  stroke: #ffb340;
-}
-
-.action-icon[data-type="calendar"] {
-  background: rgba(90, 200, 250, 0.15);
-}
-.action-icon[data-type="calendar"] svg {
-  stroke: #5ac8fa;
-}
-
-.action-icon[data-type="todo"],
-.action-icon[data-type="task"] {
-  background: rgba(52, 199, 89, 0.15);
-}
-.action-icon[data-type="todo"] svg,
-.action-icon[data-type="task"] svg {
-  stroke: #34c759;
-}
-
-.action-icon[data-type="note"],
-.action-icon[data-type="notes"] {
-  background: rgba(175, 130, 255, 0.15);
-}
-.action-icon[data-type="note"] svg,
-.action-icon[data-type="notes"] svg {
-  stroke: #af82ff;
-}
-
-.action-icon[data-type="event"] {
-  background: rgba(255, 214, 10, 0.15);
-}
-.action-icon[data-type="event"] svg {
-  stroke: #ffd60a;
-}
-
-.action-icon[data-type="meeting"] {
-  background: rgba(100, 210, 255, 0.15);
-}
-.action-icon[data-type="meeting"] svg {
-  stroke: #64d2ff;
-}
-
-.action-content {
-  flex: 1;
-  min-width: 0;
-}
-
-.action-type {
+  padding: 6px 12px;
+  border-radius: 999px;
   font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.5px;
-  color: rgba(255, 255, 255, 0.4);
-  margin-bottom: 4px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
+  margin-bottom: 4px;
 }
 
-.action-text {
-  font-size: 15px;
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.9);
+/* Vibrant pill colors for dark mode */
+.card-pill.reminder { background: rgba(249, 115, 22, 0.2); color: #FB923C; border: 1px solid rgba(249, 115, 22, 0.3); }
+.card-pill.note { background: rgba(139, 92, 246, 0.2); color: #A78BFA; border: 1px solid rgba(139, 92, 246, 0.3); }
+.card-pill.calendar { background: rgba(20, 184, 166, 0.2); color: #2DD4BF; border: 1px solid rgba(20, 184, 166, 0.3); }
+.card-pill.task { background: rgba(34, 197, 94, 0.2); color: #4ADE80; border: 1px solid rgba(34, 197, 94, 0.3); }
+.card-pill.event { background: rgba(234, 179, 8, 0.2); color: #FACC15; border: 1px solid rgba(234, 179, 8, 0.3); }
+
+.action-content-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0; /* Text overflow fix */
+}
+
+.card-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.95);
   line-height: 1.4;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  margin: 0;
+  
   display: -webkit-box;
   -webkit-line-clamp: 2;
   line-clamp: 2;
   -webkit-box-orient: vertical;
-  white-space: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* Action Buttons Container */
+.card-description {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.5);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.card-detail-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.detail-label {
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.4);
+  font-weight: 700;
+}
+
+.detail-value {
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.card-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 500;
+  margin-top: auto;
+}
+
+.card-meta-row .card-time {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* Action Buttons Container - Repositioned to top-right */
 .action-buttons {
   display: flex;
   gap: 8px;
   flex-shrink: 0;
-  opacity: 0;
+  /* Always visible now since it's part of the header interaction usually */
+  opacity: 0.8;
   transition: opacity 0.2s ease;
 }
 
-/* Show buttons on focused card */
-.action-card.focused .action-buttons {
+.action-card:hover .action-buttons {
   opacity: 1;
 }
 
 .action-buttons button {
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   border: none;
-  border-radius: 10px;
+  border-radius: 12px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.2s ease;
+  backdrop-filter: blur(4px);
 }
 
 .btn-approve {
-  background: rgba(52, 199, 89, 0.12);
+  background: rgba(52, 199, 89, 0.15);
+  border: 1px solid rgba(52, 199, 89, 0.2);
 }
 
 .btn-approve:hover {
-  background: rgba(52, 199, 89, 0.25);
+  background: rgba(52, 199, 89, 0.3);
   transform: scale(1.05);
+  border-color: rgba(52, 199, 89, 0.4);
 }
 
 .btn-approve svg {
-  width: 18px;
-  height: 18px;
-  stroke: #34c759;
+  width: 20px;
+  height: 20px;
+  stroke: #4ADE80;
   fill: none;
   stroke-width: 2.5;
 }
 
 .btn-dismiss {
-  background: rgba(255, 69, 58, 0.12);
+  background: rgba(255, 69, 58, 0.15);
+  border: 1px solid rgba(255, 69, 58, 0.2);
 }
 
 .btn-dismiss:hover {
-  background: rgba(255, 69, 58, 0.25);
+  background: rgba(255, 69, 58, 0.3);
   transform: scale(1.05);
+  border-color: rgba(255, 69, 58, 0.4);
 }
 
 .btn-dismiss svg {
-  width: 18px;
-  height: 18px;
-  stroke: #ff453a;
+  width: 20px;
+  height: 20px;
+  stroke: #FF6666;
   fill: none;
   stroke-width: 2.5;
 }
