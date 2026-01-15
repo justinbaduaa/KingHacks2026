@@ -665,13 +665,52 @@ function setupSearch() {
   }
 }
 
+
+function updateStats(nodes) {
+  const weekStatEl = document.getElementById('stat-weeks');
+  const itemStatEl = document.getElementById('stat-items');
+  
+  if (!nodes || nodes.length === 0) {
+    if (itemStatEl) itemStatEl.textContent = '🧠 0 items captured';
+    if (weekStatEl) weekStatEl.textContent = '🌟 New Member';
+    return;
+  }
+
+  // Items captured
+  const count = nodes.length;
+  if (itemStatEl) itemStatEl.textContent = `🧠 ${count} item${count === 1 ? '' : 's'} captured`;
+
+  // Weeks active
+  // Find oldest node
+  let oldestTime = Date.now();
+  nodes.forEach(node => {
+    const t = new Date(node.created_at_iso || node.captured_at_iso || Date.now()).getTime();
+    if (t < oldestTime) oldestTime = t;
+  });
+
+  const diffMs = Date.now() - oldestTime;
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  
+  let timeLabel = '';
+  if (diffDays < 7) {
+     timeLabel = `${Math.max(1, diffDays)} day${diffDays === 1 ? '' : 's'}`;
+  } else {
+     const w = Math.floor(diffDays / 7);
+     timeLabel = `${w} week${w === 1 ? '' : 's'}`;
+  }
+  
+  if (weekStatEl) weekStatEl.textContent = `🌟 ${timeLabel} active`;
+}
+
 async function loadDashboardData() {
+
   if (!window.braindump || !window.braindump.getActiveNodes) {
     renderCards(pendingList, FALLBACK_TASKS, pendingCount, 'No tasks yet');
     renderCards(remindersList, FALLBACK_REMINDERS, remindersCount, 'No reminders yet');
     renderCards(notesList, FALLBACK_NOTES, notesCount, 'No notes yet');
     renderCards(calendarList, FALLBACK_CALENDAR, calendarCount, 'No calendar items yet');
     renderActivity(activityTimeline, FALLBACK_ACTIVITY);
+    updateStats([]);
     return;
   }
 
@@ -706,6 +745,7 @@ async function loadDashboardData() {
     renderCards(notesList, noteCards, notesCount, 'No notes yet');
     renderCards(calendarList, calendarCards, calendarCount, 'No calendar items yet');
     renderActivity(activityTimeline, buildActivityFromNodes(nodes));
+    updateStats(nodes);
     
     // Store all cards for list view
     allCards = cards;
@@ -719,6 +759,7 @@ async function loadDashboardData() {
     renderCards(notesList, FALLBACK_NOTES, notesCount, 'No notes yet');
     renderCards(calendarList, FALLBACK_CALENDAR, calendarCount, 'No calendar items yet');
     renderActivity(activityTimeline, FALLBACK_ACTIVITY);
+    updateStats([]);
   }
 }
 
