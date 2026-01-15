@@ -4,7 +4,9 @@ import logging
 import os
 
 from lib.calendar_execute import CalendarExecutionError, execute_calendar_event
+from lib.contacts import get_contact_map
 from lib.dynamo import get_item
+from lib.gmail_execute import GmailExecutionError, execute_gmail_node
 from lib.google_calendar import CalendarError
 from lib.oauth_refresh import refresh_access_token
 
@@ -31,17 +33,24 @@ def _get_google_refresh_token(user_id: str) -> str:
 
 
 def _get_google_access_token(user_id: str) -> str:
+    client_id = os.environ.get("GOOGLE_OAUTH_CLIENT_ID")
+    if not client_id:
+        logger.error("GOOGLE_OAUTH_CLIENT_ID is not configured")
+        raise IntegrationExecutionError("GOOGLE_OAUTH_CLIENT_ID is not configured", 500)
+
     refresh_token = _get_google_refresh_token(user_id)
     try:
         token_response = refresh_access_token("google", refresh_token)
     except ValueError as exc:
         message = str(exc)
+        logger.warning("Google refresh token rejected: %s", message)
         if message.startswith("invalid_grant"):
             raise IntegrationExecutionError(
                 "Google refresh token expired or revoked; reconnect required", 401
             )
         raise IntegrationExecutionError("Failed to refresh Google access token", 502)
     except Exception:
+        logger.exception("Google access token refresh failed")
         raise IntegrationExecutionError("Failed to refresh Google access token", 502)
 
     access_token = token_response.get("access_token")
@@ -61,23 +70,41 @@ def execute_node_integration(
 
     logger.info("execute_node_integration start node_type=%s node_id=%s", node_type, node_id)
 
-    if node_type != "calendar_placeholder":
+    if node_type not in ("calendar_placeholder", "email"):
         if require_supported:
             raise IntegrationExecutionError(
-                "Only calendar_placeholder nodes can be executed", 400
+                "Only calendar_placeholder or email nodes can be executed", 400
             )
         return node, None
 
     access_token = _get_google_access_token(user_id)
 
+    if node_type == "calendar_placeholder":
+        try:
+            updated_node, event_response = execute_calendar_event(access_token, node)
+            event_id = (event_response or {}).get("id")
+            logger.info(
+                "execute_node_integration complete node_id=%s event_id=%s",
+                node_id,
+                event_id,
+            )
+            return updated_node, event_response
+        except CalendarExecutionError as exc:
+            raise IntegrationExecutionError(str(exc), exc.status_code)
+        except CalendarError as exc:
+            raise IntegrationExecutionError(str(exc), 502)
+        except Exception:
+            raise IntegrationExecutionError("Failed to create calendar event", 502)
+
+    contacts = get_contact_map(user_id)
     try:
-        updated_node, event_response = execute_calendar_event(access_token, node)
-        event_id = (event_response or {}).get("id")
-        logger.info("execute_node_integration complete node_id=%s event_id=%s", node_id, event_id)
-        return updated_node, event_response
-    except CalendarExecutionError as exc:
+        updated_node, email_response = execute_gmail_node(access_token, node, contacts)
+        message_id = (email_response or {}).get("message_id")
+        logger.info(
+            "execute_node_integration complete node_id=%s message_id=%s",
+            node_id,
+            message_id,
+        )
+        return updated_node, email_response
+    except GmailExecutionError as exc:
         raise IntegrationExecutionError(str(exc), exc.status_code)
-    except CalendarError as exc:
-        raise IntegrationExecutionError(str(exc), 502)
-    except Exception:
-        raise IntegrationExecutionError("Failed to create calendar event", 502)

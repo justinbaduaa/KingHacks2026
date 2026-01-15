@@ -50,7 +50,7 @@ def validate_node_manual(node: dict) -> list[str]:
     if node.get("schema_version") != SCHEMA_VERSION:
         errors.append(f"Invalid schema_version: expected {SCHEMA_VERSION}")
     
-    valid_node_types = ["reminder", "todo", "note", "calendar_placeholder"]
+    valid_node_types = ["reminder", "todo", "note", "calendar_placeholder", "email"]
     node_type = node.get("node_type")
     if node_type not in valid_node_types:
         errors.append(f"Invalid node_type: {node_type}")
@@ -64,6 +64,8 @@ def validate_node_manual(node: dict) -> list[str]:
         errors.append("note node missing 'note' payload")
     elif node_type == "calendar_placeholder" and "calendar_placeholder" not in node:
         errors.append("calendar_placeholder node missing 'calendar_placeholder' payload")
+    elif node_type == "email" and "email" not in node:
+        errors.append("email node missing 'email' payload")
     
     # Validate confidence range
     confidence = node.get("confidence")

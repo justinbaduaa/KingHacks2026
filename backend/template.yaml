@@ -11,6 +11,13 @@ Parameters:
     Type: String
     Default: "889539163514-10nft2cs9sg6r66ssrusa649qm82kajr.apps.googleusercontent.com"
     Description: Google OAuth Desktop client ID (PKCE)
+  GoogleDesktopClientSecretArn:
+    Type: String
+    Default: ""
+    Description: Secrets Manager ARN for Google OAuth client secret (optional)
+
+Conditions:
+  HasGoogleSecret: !Not [!Equals [!Ref GoogleDesktopClientSecretArn, ""]]
 
 Globals:
   Function:
@@ -22,6 +29,10 @@ Globals:
         TABLE_NAME: !Ref DynamoDBTable
         INTEGRATIONS_TABLE_NAME: !Ref IntegrationsTable
         GOOGLE_OAUTH_CLIENT_ID: !Ref GoogleDesktopClientId
+        GOOGLE_OAUTH_CLIENT_SECRET: !If
+          - HasGoogleSecret
+          - !Sub "{{resolve:secretsmanager:${GoogleDesktopClientSecretArn}:SecretString}}"
+          - ""
 
 Resources:
   BackendApi:
@@ -187,6 +198,8 @@ Resources:
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref DynamoDBTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref IntegrationsTable
         - Statement:
             - Effect: Allow
               Action:
@@ -296,6 +309,22 @@ Resources:
             RestApiId: !Ref BackendApi
             Path: /integrations/google/token
             Method: ANY
+
+  GoogleOAuthCodeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handlers.google_oauth_code.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref IntegrationsTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BackendApi
+            Path: /integrations/google/code
+            Method: POST
 
   GoogleGmailLabelsFunction:
     Type: AWS::Serverless::Function

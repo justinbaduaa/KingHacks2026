@@ -15,11 +15,23 @@ class GmailError(Exception):
     pass
 
 
+def _format_address_list(value) -> str:
+    if not value:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        return ", ".join([entry for entry in value if entry])
+    return str(value)
+
+
 def create_message(
-    to: str,
+    to: str | list,
     subject: str,
     body: str,
     sender: Optional[str] = None,
+    cc: Optional[list[str] | str] = None,
+    bcc: Optional[list[str] | str] = None,
     html: bool = False,
 ) -> str:
     """
@@ -30,6 +42,8 @@ def create_message(
         subject: Email subject line
         body: Email body text
         sender: Optional sender email (defaults to authenticated user)
+        cc: Optional cc list or comma-separated string
+        bcc: Optional bcc list or comma-separated string
         html: If True, treat body as HTML content
 
     Returns:
@@ -41,8 +55,12 @@ def create_message(
     """
     content_type = "html" if html else "plain"
     message = MIMEText(body, content_type)
-    message["to"] = to
+    message["to"] = _format_address_list(to)
     message["subject"] = subject
+    if cc:
+        message["cc"] = _format_address_list(cc)
+    if bcc:
+        message["bcc"] = _format_address_list(bcc)
 
     if sender:
         message["from"] = sender
@@ -54,9 +72,11 @@ def create_message(
 
 def create_draft(
     access_token: str,
-    to: str,
+    to: str | list,
     subject: str,
     body: str,
+    cc: Optional[list[str] | str] = None,
+    bcc: Optional[list[str] | str] = None,
     html: bool = False,
 ) -> dict:
     """
@@ -67,6 +87,8 @@ def create_draft(
         to: Recipient email address
         subject: Email subject line
         body: Email body text
+        cc: Optional cc list or comma-separated string
+        bcc: Optional bcc list or comma-separated string
         html: If True, treat body as HTML content
 
     Returns:
@@ -87,7 +109,7 @@ def create_draft(
         >>> print(result["id"])
         r1234567890
     """
-    raw_message = create_message(to, subject, body, html=html)
+    raw_message = create_message(to, subject, body, cc=cc, bcc=bcc, html=html)
 
     draft_body = {
         "message": {
@@ -124,9 +146,11 @@ def create_draft(
 
 def send_email(
     access_token: str,
-    to: str,
+    to: str | list,
     subject: str,
     body: str,
+    cc: Optional[list[str] | str] = None,
+    bcc: Optional[list[str] | str] = None,
     html: bool = False,
 ) -> dict:
     """
@@ -137,6 +161,8 @@ def send_email(
         to: Recipient email address
         subject: Email subject line
         body: Email body text
+        cc: Optional cc list or comma-separated string
+        bcc: Optional bcc list or comma-separated string
         html: If True, treat body as HTML content
 
     Returns:
@@ -157,7 +183,7 @@ def send_email(
         ... )
         >>> print(result["id"])
     """
-    raw_message = create_message(to, subject, body, html=html)
+    raw_message = create_message(to, subject, body, cc=cc, bcc=bcc, html=html)
 
     send_body = {
         "raw": raw_message,
