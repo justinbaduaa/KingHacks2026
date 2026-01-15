@@ -133,7 +133,7 @@ function convertNodesToTasks(nodes) {
       fullNode: node,
       dateStr: dateStr,
       timeStr: timeStr,
-      locationStr: locationStr
+      locationStr: locationStr,
       actionData: {
         // Include any action-related data from the node
         to: node.to,
