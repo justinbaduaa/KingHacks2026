@@ -1,10 +1,10 @@
 import json
 import logging
-
 from lib.response import api_response, error_response
 from lib.auth import get_user_id
 from lib.dynamo import put_node_item
 from lib.ids import generate_node_id
+from lib.integration_execute import IntegrationExecutionError, execute_node_integration
 from lib.json_utils import parse_body
 from lib.time_normalize import compute_local_day, utc_now_iso
 
@@ -67,6 +67,14 @@ def handler(event, context):
     
     # Ensure node has node_id
     node["node_id"] = node_id
+
+    # Execute integrations before persisting
+    try:
+        node, _event_response = execute_node_integration(
+            user_id, node, require_supported=False
+        )
+    except IntegrationExecutionError as exc:
+        return error_response(exc.status_code, str(exc))
     
     try:
         # Save to DynamoDB

@@ -1,8 +1,11 @@
 """Google Calendar API integration utilities."""
 
-import requests
+import re
 from datetime import datetime, timedelta
-from typing import Optional, List
+from typing import Optional, List, Union
+
+import requests
+from dateutil import parser as dateutil_parser
 
 
 CALENDAR_API_BASE = "https://www.googleapis.com/calendar/v3"
@@ -16,11 +19,12 @@ class CalendarError(Exception):
 def create_calendar_event(
     access_token: str,
     title: str,
-    start_datetime: datetime,
-    end_datetime: Optional[datetime] = None,
+    start_datetime: Union[datetime, str],
+    end_datetime: Optional[Union[datetime, str]] = None,
     description: Optional[str] = None,
     attendees: Optional[List[str]] = None,
-    timezone: str = "UTC",
+    location: Optional[str] = None,
+    timezone: Optional[str] = None,
     calendar_id: str = "primary",
 ) -> dict:
     """
@@ -29,11 +33,12 @@ def create_calendar_event(
     Args:
         access_token: OAuth access token for Google Calendar API
         title: Event title/summary
-        start_datetime: Event start time (datetime object)
+        start_datetime: Event start time (datetime or ISO string)
         end_datetime: Event end time (defaults to 1 hour after start)
         description: Optional event description
         attendees: Optional list of attendee email addresses
-        timezone: Timezone for the event (default: UTC)
+        location: Optional event location
+        timezone: Optional timezone ID (if omitted, use offset in dateTime)
         calendar_id: Calendar ID to create event in (default: primary)
 
     Returns:
@@ -56,26 +61,52 @@ def create_calendar_event(
         >>> print(result["htmlLink"])
         https://www.google.com/calendar/event?eid=...
     """
+    def _is_date_only(value: object) -> bool:
+        return isinstance(value, str) and re.match(r"^\d{4}-\d{2}-\d{2}$", value) is not None
+
+    def _coerce_datetime(value: Union[datetime, str]) -> datetime:
+        if isinstance(value, datetime):
+            return value
+        return dateutil_parser.isoparse(value)
+
     # Default end time to 1 hour after start if not provided
     if end_datetime is None:
-        end_datetime = start_datetime + timedelta(hours=1)
+        if _is_date_only(start_datetime):
+            start_dt = _coerce_datetime(start_datetime)
+            end_datetime = (start_dt + timedelta(days=1)).date().isoformat()
+        else:
+            start_dt = _coerce_datetime(start_datetime)
+            end_datetime = start_dt + timedelta(hours=1)
 
     # Build event body
+    if _is_date_only(start_datetime):
+        start_payload = {"date": start_datetime}
+    else:
+        start_dt = _coerce_datetime(start_datetime)
+        start_payload = {"dateTime": start_dt.isoformat()}
+        if timezone:
+            start_payload["timeZone"] = timezone
+
+    if _is_date_only(end_datetime):
+        end_payload = {"date": end_datetime}
+    else:
+        end_dt = _coerce_datetime(end_datetime)
+        end_payload = {"dateTime": end_dt.isoformat()}
+        if timezone:
+            end_payload["timeZone"] = timezone
+
     event_body = {
         "summary": title,
-        "start": {
-            "dateTime": start_datetime.isoformat(),
-            "timeZone": timezone,
-        },
-        "end": {
-            "dateTime": end_datetime.isoformat(),
-            "timeZone": timezone,
-        },
+        "start": start_payload,
+        "end": end_payload,
     }
 
     # Add optional fields
     if description:
         event_body["description"] = description
+
+    if location:
+        event_body["location"] = location
 
     if attendees:
         event_body["attendees"] = [{"email": email} for email in attendees]

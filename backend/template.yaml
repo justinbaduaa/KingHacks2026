@@ -255,12 +255,30 @@ Resources:
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref DynamoDBTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref IntegrationsTable
       Events:
         Api:
           Type: Api
           Properties:
             RestApiId: !Ref BackendApi
             Path: /node/{node_id}/complete
+            Method: POST
+
+  ExecuteNodeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handlers.execute_node.handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref IntegrationsTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BackendApi
+            Path: /node/{node_id}/execute
             Method: POST
 
   GoogleTokenFunction:
@@ -293,6 +311,22 @@ Resources:
           Properties:
             RestApiId: !Ref BackendApi
             Path: /integrations/google/gmail/labels
+            Method: GET
+
+  GoogleAccessTokenFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handlers.google_access_token.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref IntegrationsTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BackendApi
+            Path: /integrations/google/access-token
             Method: GET
 
   WhoAmIFunction:

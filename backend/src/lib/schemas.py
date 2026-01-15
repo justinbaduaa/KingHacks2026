@@ -247,6 +247,16 @@ CALENDAR_PLACEHOLDER_PAYLOAD_SCHEMA = {
             "type": "array",
             "items": {"type": "string", "maxLength": 100},
             "maxItems": 20
+        },
+        "provider_event_id": {
+            "type": ["string", "null"],
+            "maxLength": 200,
+            "description": "Provider event ID after execution"
+        },
+        "provider_event_link": {
+            "type": ["string", "null"],
+            "maxLength": 500,
+            "description": "Provider event link after execution"
         }
     },
     "required": ["intent", "event_title", "start"],
