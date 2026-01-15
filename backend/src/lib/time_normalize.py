@@ -43,15 +43,16 @@ def ensure_iso_datetime(value: str, default_offset: str) -> str | None:
         # Try parsing
         dt = dateutil_parser.isoparse(value)
         
-        # If no timezone, add default
-        if dt.tzinfo is None:
-            # Parse the offset string to create tzoffset
-            offset_hours = int(default_offset[1:3])
-            offset_minutes = int(default_offset[4:6])
-            offset_seconds = (offset_hours * 3600 + offset_minutes * 60)
-            if default_offset[0] == "-":
-                offset_seconds = -offset_seconds
-            dt = dt.replace(tzinfo=tzoffset(None, offset_seconds))
+        # Parse the offset string to create tzoffset
+        offset_hours = int(default_offset[1:3])
+        offset_minutes = int(default_offset[4:6])
+        offset_seconds = (offset_hours * 3600 + offset_minutes * 60)
+        if default_offset[0] == "-":
+            offset_seconds = -offset_seconds
+        target_tz = tzoffset(None, offset_seconds)
+
+        # Always keep wall time and apply the user's offset (no conversion).
+        dt = dt.replace(tzinfo=target_tz)
         
         return dt.isoformat()
     except Exception:

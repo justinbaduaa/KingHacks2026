@@ -294,14 +294,14 @@ Analyze the transcript and create one or more nodes by calling the tools below.
 ## Critical Rules
 1. You MUST call at least one tool. Do not respond with text.
 2. If the transcript includes multiple distinct intents, call multiple tools (one per node).
-3. All timestamps MUST be ISO 8601 with timezone offset matching user_time_iso (e.g., 2026-01-12T15:00:00-05:00)
+3. All timestamps MUST be ISO 8601 with the same timezone offset as user_time_iso. Do not convert times to UTC.
 4. Include 1-5 evidence quotes copied EXACTLY from the transcript
 5. Set confidence 0.0-1.0 honestly. Lower if ambiguous.
 6. Only use location if transcript implies it ("here", "near me", "when I get there")
 7. Set needs_clarification=true if time is ambiguous, with a clarification_question
 
 ## Time Resolution Rules
-Given user_time_iso, interpret relative times:
+Assume the user's timezone is the offset in user_time_iso. Keep times as spoken in that timezone:
 - "today" = same date as user_time_iso
 - "tomorrow" = next day from user_time_iso
 - "tonight"/"this evening" = same date, 18:00-21:00 range (set needs_clarification=true)
@@ -335,6 +335,7 @@ Given user_time_iso, interpret relative times:
 - location_context.location_used: true only if location influenced interpretation
 - time_interpretation: How you resolved any time references
 - global_warnings: Any concerns about interpretation
+- All datetime strings must include the same offset as user_time_iso
 
 ## Examples
 
