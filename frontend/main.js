@@ -54,6 +54,18 @@ function getApiUrl() {
   return cachedApiUrl;
 }
 
+function toLocalIsoWithOffset(date = new Date()) {
+  const offsetMinutes = date.getTimezoneOffset();
+  const sign = offsetMinutes > 0 ? "-" : "+";
+  const pad = (value) => String(Math.floor(Math.abs(value))).padStart(2, "0");
+  const hours = pad(offsetMinutes / 60);
+  const minutes = pad(offsetMinutes % 60);
+  const local = new Date(date.getTime() - offsetMinutes * 60000)
+    .toISOString()
+    .replace("Z", "");
+  return `${local}${sign}${hours}:${minutes}`;
+}
+
 async function callApi(endpoint, method = "GET", body = null) {
   const apiUrl = getApiUrl();
   if (!apiUrl) {
@@ -551,7 +563,7 @@ app.whenReady().then(async () => {
     try {
       const body = {
         transcript: transcript,
-        user_time_iso: userTimeIso || new Date().toISOString(),
+        user_time_iso: userTimeIso || toLocalIsoWithOffset(),
         user_id: "demo",
         user_location: {
           kind: "unknown",
