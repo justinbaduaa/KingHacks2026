@@ -1,116 +1,10 @@
 // SecondBrain Dashboard - Premium MVP
 
-// ===== Mock Data =====
-
-const MOCK_TASKS = [
-  {
-    id: 1,
-    type: 'email',
-    title: 'Email to Sarah',
-    description: 'Follow up about the project update meeting scheduled for next week',
-    timestamp: '2 hours ago',
-    status: 'pending'
-  },
-  {
-    id: 2,
-    type: 'calendar',
-    title: 'Design Team Meeting',
-    description: 'Added to calendar: Monday at 2:00 PM with the design team',
-    timestamp: '3 hours ago',
-    status: 'completed'
-  },
-  {
-    id: 3,
-    type: 'task',
-    title: 'Research Competitors',
-    description: 'Research top competitors for the new AI feature planning',
-    timestamp: 'Yesterday',
-    status: 'pending'
-  }
-];
-
-const MOCK_REMINDERS = [
-  {
-    id: 1,
-    type: 'reminder',
-    title: 'Call Mom',
-    description: 'Weekly check-in call - she mentioned wanting to hear about the project',
-    timestamp: 'Due today',
-    status: 'pending'
-  },
-  {
-    id: 2,
-    type: 'reminder',
-    title: 'Submit Hackathon',
-    description: 'Final submission deadline for KingHacks 2026',
-    timestamp: 'Due tomorrow',
-    status: 'pending'
-  }
-];
-
-const MOCK_NOTES = [
-  {
-    id: 1,
-    type: 'note',
-    title: 'AI Study Planner Idea',
-    description: 'Use spaced repetition combined with AI to create personalized study schedules based on learning patterns',
-    timestamp: 'Today',
-    status: null
-  },
-  {
-    id: 2,
-    type: 'note',
-    title: 'Dashboard UI Notes',
-    description: 'Inspiration: Wispr clean layouts, Cluely warm gradients. Keep glass effect for cards.',
-    timestamp: 'Today',
-    status: null
-  },
-  {
-    id: 3,
-    type: 'note',
-    title: 'Backend Architecture',
-    description: 'Consider using FastAPI for the transcription pipeline with async endpoints',
-    timestamp: 'Yesterday',
-    status: null
-  },
-  {
-    id: 4,
-    type: 'note',
-    title: 'Shortcut Ideas',
-    description: 'Option+Shift+Space works well. Consider adding custom shortcuts in settings.',
-    timestamp: '2 days ago',
-    status: null
-  }
-];
-
-const MOCK_ACTIVITY = [
-  {
-    day: 'TODAY',
-    items: [
-      { time: '05:35 PM', type: 'reminder', text: 'Created reminder: Call Mom', detail: 'Due today' },
-      { time: '03:22 PM', type: 'email', text: 'Drafted email to Sarah', detail: 'Pending send' },
-      { time: '02:15 PM', type: 'note', text: 'Added note: AI Study Planner Idea', detail: 'Voice capture' },
-      { time: '11:53 AM', type: 'calendar', text: 'Added meeting to calendar', detail: 'Design Team - Monday 2 PM' },
-      { time: '09:20 AM', type: 'task', text: 'Completed task: Review PR', detail: 'Code review' }
-    ]
-  },
-  {
-    day: 'YESTERDAY',
-    items: [
-      { time: '04:30 PM', type: 'task', text: 'Created task: Research Competitors', detail: 'AI feature planning' },
-      { time: '02:45 PM', type: 'note', text: 'Added note: Backend Architecture', detail: 'Voice capture' },
-      { time: '10:20 AM', type: 'reminder', text: 'Created reminder: Submit Hackathon', detail: 'Due tomorrow' }
-    ]
-  },
-  {
-    day: 'THIS WEEK',
-    items: [
-      { time: 'Mon 3:00 PM', type: 'note', text: 'Added note: Shortcut Ideas', detail: 'Voice capture' },
-      { time: 'Mon 11:30 AM', type: 'calendar', text: 'Added meeting to calendar', detail: 'Weekly standup' },
-      { time: 'Sun 8:15 PM', type: 'note', text: 'Added note: Dashboard UI Notes', detail: 'Voice capture' }
-    ]
-  }
-];
+// ===== Fallback Data =====
+const FALLBACK_TASKS = [];
+const FALLBACK_REMINDERS = [];
+const FALLBACK_NOTES = [];
+const FALLBACK_ACTIVITY = [];
 
 // ===== DOM Elements =====
 const pendingList = document.getElementById('pending-list');
@@ -150,7 +44,10 @@ function renderCard(item) {
     : '';
   
   return `
-    <div class="kanban-card" data-id="${item.id}" data-type="${item.type}">
+    <div class="kanban-card" data-id="${item.id}" data-node-id="${item.nodeId || ''}" data-type="${item.type}">
+      <button class="card-delete" title="Delete">
+        <i data-feather="x"></i>
+      </button>
       <h3 class="card-title">${item.title}</h3>
       <p class="card-description">${item.description}</p>
       <span class="card-tag ${item.type}">${item.type.charAt(0).toUpperCase() + item.type.slice(1)}</span>
@@ -211,6 +108,86 @@ function renderActivity(container, activityData) {
   });
   
   container.innerHTML = html;
+}
+
+function formatRelativeTime(isoString) {
+  if (!isoString) return 'Just now';
+  const date = new Date(isoString);
+  if (Number.isNaN(date.getTime())) {
+    return 'Just now';
+  }
+  const diffMs = Date.now() - date.getTime();
+  const diffMinutes = Math.floor(diffMs / 60000);
+  if (diffMinutes < 1) return 'Just now';
+  if (diffMinutes < 60) return `${diffMinutes} min ago`;
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours} hr ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays === 1) return 'Yesterday';
+  return `${diffDays} days ago`;
+}
+
+function normalizeNodeType(nodeType) {
+  if (!nodeType) return 'task';
+  if (nodeType === 'todo') return 'task';
+  if (nodeType === 'calendar_placeholder') return 'calendar';
+  return nodeType;
+}
+
+function deriveCardFromNode(node) {
+  const nodeType = normalizeNodeType(node.node_type);
+  const title = node.title || node.todo?.task || node.reminder?.reminder_text || node.body || 'Untitled';
+  const description = node.body || node.note?.content || node.todo?.task || node.reminder?.reminder_text || '';
+  const status = node.status === 'completed' || node.todo?.status_detail === 'done' ? 'completed' : 'pending';
+
+  return {
+    id: node.node_id || node.id,
+    nodeId: node.node_id || node.id,
+    type: nodeType,
+    title,
+    description,
+    timestamp: formatRelativeTime(node.created_at_iso || node.captured_at_iso),
+    status: nodeType === 'note' ? null : status,
+  };
+}
+
+function buildActivityFromNodes(nodes) {
+  const groups = new Map();
+  const sorted = [...nodes].sort((a, b) => {
+    const aTime = new Date(a.created_at_iso || a.captured_at_iso || 0).getTime();
+    const bTime = new Date(b.created_at_iso || b.captured_at_iso || 0).getTime();
+    return bTime - aTime;
+  });
+
+  sorted.forEach((node) => {
+    const date = new Date(node.created_at_iso || node.captured_at_iso || Date.now());
+    const dayKey = date.toDateString();
+    const nodeType = normalizeNodeType(node.node_type);
+    const title = node.title || node.todo?.task || node.reminder?.reminder_text || node.body || 'Untitled';
+    const timeLabel = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    if (!groups.has(dayKey)) {
+      groups.set(dayKey, []);
+    }
+    groups.get(dayKey).push({
+      time: timeLabel,
+      type: nodeType,
+      text: title,
+      detail: nodeType === 'note' ? 'Note captured' : 'Captured',
+    });
+  });
+
+  const todayKey = new Date().toDateString();
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayKey = yesterday.toDateString();
+
+  return Array.from(groups.entries()).map(([dayKey, items]) => {
+    let label = dayKey.toUpperCase();
+    if (dayKey === todayKey) label = 'TODAY';
+    if (dayKey === yesterdayKey) label = 'YESTERDAY';
+    return { day: label, items };
+  });
 }
 
 // ===== View Switching =====
@@ -376,22 +353,100 @@ function setupSearch() {
   }
 }
 
+async function loadDashboardData() {
+  if (!window.braindump || !window.braindump.getActiveNodes) {
+    renderCards(pendingList, FALLBACK_TASKS, pendingCount);
+    renderCards(remindersList, FALLBACK_REMINDERS, remindersCount);
+    renderCards(notesList, FALLBACK_NOTES, notesCount);
+    renderActivity(activityTimeline, FALLBACK_ACTIVITY);
+    return;
+  }
+
+  try {
+    const result = await window.braindump.getActiveNodes();
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to load nodes');
+    }
+
+    const nodes = result.body?.nodes || [];
+    const cards = nodes.map(deriveCardFromNode);
+
+    const pendingCards = [];
+    const reminderCards = [];
+    const noteCards = [];
+
+    cards.forEach((card) => {
+      if (card.type === 'reminder') {
+        reminderCards.push(card);
+      } else if (card.type === 'note') {
+        noteCards.push(card);
+      } else {
+        pendingCards.push(card);
+      }
+    });
+
+    renderCards(pendingList, pendingCards, pendingCount);
+    renderCards(remindersList, reminderCards, remindersCount);
+    renderCards(notesList, noteCards, notesCount);
+    renderActivity(activityTimeline, buildActivityFromNodes(nodes));
+  } catch (err) {
+    console.error('[DASHBOARD] Failed to load nodes:', err);
+    renderCards(pendingList, FALLBACK_TASKS, pendingCount);
+    renderCards(remindersList, FALLBACK_REMINDERS, remindersCount);
+    renderCards(notesList, FALLBACK_NOTES, notesCount);
+    renderActivity(activityTimeline, FALLBACK_ACTIVITY);
+  }
+}
+
+function setupDeleteHandlers() {
+  document.addEventListener('click', async (e) => {
+    const deleteBtn = e.target.closest('.card-delete');
+    if (!deleteBtn) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const card = deleteBtn.closest('.kanban-card');
+    if (!card) return;
+
+    const nodeId = card.dataset.nodeId;
+    if (!nodeId || !window.braindump?.deleteNode) {
+      return;
+    }
+
+    const shouldDelete = window.confirm('Delete this item?');
+    if (!shouldDelete) return;
+
+    const result = await window.braindump.deleteNode(nodeId);
+    if (!result.success) {
+      console.error('[DASHBOARD] Delete failed:', result.error || result.body);
+      return;
+    }
+
+    card.remove();
+    loadDashboardData();
+  });
+}
+
+function setupRefreshButton() {
+  const refreshBtn = document.querySelector('.nav-actions .action-btn[title="Refresh"]');
+  if (!refreshBtn) return;
+  refreshBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    loadDashboardData();
+  });
+}
+
 // ===== Init =====
 document.addEventListener('DOMContentLoaded', () => {
-  // Render all columns
-  renderCards(pendingList, MOCK_TASKS, pendingCount);
-  renderCards(remindersList, MOCK_REMINDERS, remindersCount);
-  renderCards(notesList, MOCK_NOTES, notesCount);
-  
-  // Render activity timeline
-  renderActivity(activityTimeline, MOCK_ACTIVITY);
-  
   setupNavigation();
   setupThemeToggle();
   setupWindowControls();
   setupCaptureButton();
   setupCardInteractions();
   setupSearch();
+  setupRefreshButton();
+  setupDeleteHandlers();
   
   // Login handlers
   if (loginBtn) {
@@ -408,4 +463,6 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Default to home view
   switchView('home');
+
+  loadDashboardData();
 });

@@ -23,6 +23,9 @@ contextBridge.exposeInMainWorld('braindump', {
   
   // Backend integration - Complete Node
   completeNode: (node, nodeId) => ipcRenderer.invoke('complete-node', node, nodeId),
+  getActiveNodes: () => ipcRenderer.invoke('get-active-nodes'),
+  deleteNode: (nodeId) => ipcRenderer.invoke('delete-node', nodeId),
+  googleAccessToken: () => ipcRenderer.invoke('google-access-token'),
   
   // Auth
   authStatus: () => ipcRenderer.invoke('auth-status'),
@@ -40,4 +43,3 @@ contextBridge.exposeInMainWorld('braindump', {
   onTranscribeError: (callback) => ipcRenderer.on('transcribe-error', (_, err) => callback(err)),
   onTranscribeReady: (callback) => ipcRenderer.on('transcribe-ready', callback),
 });
-

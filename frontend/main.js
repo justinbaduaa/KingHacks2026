@@ -13,6 +13,7 @@ const fs = require("fs");
 const https = require("https");
 const { execSync } = require("child_process");
 const { ensureValidTokens, loadConfig, loginInteractive, clearTokens } = require("./auth");
+const { loginGoogleInteractive } = require("./google_auth");
 const { createTranscribeSession } = require("./transcribe");
 
 let mainWindow = null;
@@ -106,6 +107,52 @@ async function callApi(endpoint, method = "GET", body = null) {
 
     req.end();
   });
+}
+
+async function ensureCognitoLogin() {
+  const tokens = await ensureValidTokens().catch(() => null);
+  if (tokens) {
+    return true;
+  }
+  try {
+    await loginInteractive();
+    return true;
+  } catch (err) {
+    console.error("[AUTH] Cognito login failed:", err);
+    return false;
+  }
+}
+
+async function ensureGoogleConnected() {
+  let connected = false;
+
+  try {
+    const status = await callApi("integrations/google/token", "GET");
+    connected = Boolean(status?.body?.connected);
+  } catch (err) {
+    console.warn("[GOOGLE] Failed to check integration status:", err?.message || err);
+  }
+
+  if (connected) {
+    return true;
+  }
+
+  const tokens = await loginGoogleInteractive();
+  if (!tokens?.refresh_token) {
+    throw new Error("Google OAuth did not return a refresh token. Try disconnecting and re-consenting.");
+  }
+
+  const payload = {
+    refresh_token: tokens.refresh_token,
+    access_token: tokens.access_token,
+    access_token_expires_at: tokens.expires_at,
+    scope: tokens.scope,
+    provider_user_id: tokens.provider_user_id,
+    token_type: tokens.token_type,
+  };
+
+  await callApi("integrations/google/token", "POST", payload);
+  return true;
 }
 
 // Error handlers
@@ -374,6 +421,15 @@ app.whenReady().then(async () => {
   createWindow();
   createTray();
 
+  const cognitoReady = await ensureCognitoLogin();
+  if (cognitoReady) {
+    try {
+      await ensureGoogleConnected();
+    } catch (err) {
+      console.error("[GOOGLE] Google login failed:", err?.message || err);
+    }
+  }
+
   // Register shortcut - fires repeatedly while held
   // Use Option+Shift+Space on Mac, Alt+Shift+Space on Windows/Linux
   const shortcut = "Alt+Shift+Space";
@@ -526,6 +582,43 @@ app.whenReady().then(async () => {
       };
       
       const result = await callApi(endpoint, "POST", body);
+      return { success: true, ...result };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle("get-active-nodes", async () => {
+    try {
+      const result = await callApi("nodes/active", "GET");
+      if (result.statusCode >= 300) {
+        return { success: false, ...result };
+      }
+      return { success: true, ...result };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle("delete-node", async (event, nodeId) => {
+    try {
+      if (!nodeId) {
+        throw new Error("Node ID is required to delete node");
+      }
+      const endpoint = `node/${nodeId}`;
+      const result = await callApi(endpoint, "DELETE");
+      if (result.statusCode >= 300) {
+        return { success: false, ...result };
+      }
+      return { success: true, ...result };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle("google-access-token", async () => {
+    try {
+      const result = await callApi("integrations/google/access-token", "GET");
       return { success: true, ...result };
     } catch (err) {
       return { success: false, error: err.message };
