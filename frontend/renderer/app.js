@@ -35,6 +35,80 @@ let audioWorkletNode = null;  // AudioWorklet node for modern audio processing
 let workletReady = false;  // Flag to track if worklet is registered
 let isTranscribing = false;
 
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function parseIsoParts(isoString) {
+  if (!isoString || typeof isoString !== 'string') return null;
+  const match = isoString.match(
+    /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?/
+  );
+  if (!match) return null;
+  const [, year, month, day, hour, minute] = match;
+  return {
+    year: Number(year),
+    month: Number(month),
+    day: Number(day),
+    hour: hour === undefined ? null : Number(hour),
+    minute: minute === undefined ? 0 : Number(minute),
+  };
+}
+
+function formatDateLabel(parts) {
+  if (!parts) return null;
+  const month = MONTHS_SHORT[parts.month - 1];
+  if (!month) return null;
+  return `${month} ${parts.day}`;
+}
+
+function formatTimeLabel(parts) {
+  if (!parts || parts.hour === null) return null;
+  const hours = parts.hour % 12 || 12;
+  const period = parts.hour >= 12 ? 'p.m.' : 'a.m.';
+  if (parts.minute && parts.minute !== 0) {
+    return `${hours}:${String(parts.minute).padStart(2, '0')} ${period}`;
+  }
+  return `${hours} ${period}`;
+}
+
+// Extract date/time and location info from node
+function extractTimeAndLocation(node) {
+  const nodeType = node.node_type || '';
+  let dateStr = null;
+  let timeStr = null;
+  let locationStr = null;
+
+  if (nodeType === 'calendar_placeholder' && node.calendar_placeholder) {
+    const cal = node.calendar_placeholder;
+    if (cal.start_datetime_iso) {
+      const parts = parseIsoParts(cal.start_datetime_iso);
+      dateStr = formatDateLabel(parts);
+      timeStr = formatTimeLabel(parts);
+    }
+    if (cal.location_text) {
+      locationStr = cal.location_text;
+    }
+  } else if (nodeType === 'reminder' && node.reminder) {
+    const rem = node.reminder;
+    if (rem.trigger_datetime_iso) {
+      const parts = parseIsoParts(rem.trigger_datetime_iso);
+      dateStr = formatDateLabel(parts);
+      timeStr = formatTimeLabel(parts);
+    }
+  } else if (nodeType === 'todo' && node.todo) {
+    const todo = node.todo;
+    if (todo.due_datetime_iso) {
+      const parts = parseIsoParts(todo.due_datetime_iso);
+      dateStr = formatDateLabel(parts);
+      timeStr = formatTimeLabel(parts);
+    } else if (todo.due_date_iso) {
+      const parts = parseIsoParts(todo.due_date_iso);
+      dateStr = formatDateLabel(parts);
+    }
+  }
+
+  return { dateStr, timeStr, locationStr };
+}
+
 // Convert Bedrock nodes to UI task format
 function convertNodesToTasks(nodes) {
   if (!nodes || !Array.isArray(nodes)) return [];
@@ -44,11 +118,17 @@ function convertNodesToTasks(nodes) {
     if (displayType === 'calendar_placeholder') displayType = 'calendar';
     displayType = displayType.charAt(0).toUpperCase() + displayType.slice(1);
     
+    // Extract time and location
+    const { dateStr, timeStr, locationStr } = extractTimeAndLocation(node);
+    
     return {
       type: displayType,
       text: node.title || node.body || 'Untitled',
       nodeId: node.node_id,
-      fullNode: node
+      fullNode: node,
+      dateStr: dateStr,
+      timeStr: timeStr,
+      locationStr: locationStr
     };
   });
 }
@@ -162,13 +242,28 @@ function renderCards(tasks) {
     card.dataset.index = index;
     card.dataset.type = task.type.toLowerCase();
     if (index === tasks.length - 1) card.classList.add('last-card');
+    const dateTimeLabel = task.dateStr && task.timeStr
+      ? `${task.dateStr} • ${task.timeStr}`
+      : (task.dateStr || task.timeStr || '');
+    const dateTimeHtml = dateTimeLabel
+      ? `<div class="action-date-time">${dateTimeLabel}</div>`
+      : '';
+    const locationHtml = task.locationStr
+      ? `<span class="location-indicator">${task.locationStr}</span>`
+      : '';
+    
     card.innerHTML = `
-      <div class="action-icon" data-type="${task.type.toLowerCase()}">
-        ${getIconForType(task.type)}
+      <div class="action-left">
+        <div class="action-icon" data-type="${task.type.toLowerCase()}">
+          ${getIconForType(task.type)}
+        </div>
+        ${dateTimeHtml}
       </div>
       <div class="action-content">
-        <div class="action-type">${task.type}</div>
-        <div class="action-text">${task.text}</div>
+        <div class="action-title-row">
+          <div class="action-text">${task.text}</div>
+          ${locationHtml}
+        </div>
       </div>
       <div class="action-buttons">
         <button class="btn-approve" title="Approve">

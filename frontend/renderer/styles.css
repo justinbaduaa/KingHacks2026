@@ -165,13 +165,13 @@ body {
   bottom: 0;
   left: 0;
   width: 100%;
-  min-height: 80px;
+  min-height: 100px;
   
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
   
-  padding: 16px 20px;
+  padding: 18px 20px;
   
   /* Dark card styling */
   background: rgba(28, 28, 30, 0.95);
@@ -243,6 +243,14 @@ body {
 }
 
 /* Icon styling for dark cards */
+.action-left {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 58px;
+}
+
 .action-icon {
   width: 40px;
   height: 40px;
@@ -262,6 +270,16 @@ body {
   stroke: rgba(255, 255, 255, 0.7);
   fill: none;
   stroke-width: 1.5;
+}
+
+.action-date-time {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  color: rgba(255, 255, 255, 0.85);
+  text-align: center;
+  line-height: 1.1;
+  white-space: nowrap;
 }
 
 /* Type-specific icon colors */
@@ -314,15 +332,38 @@ body {
 .action-content {
   flex: 1;
   min-width: 0;
+  display: flex;
+  align-items: center;
 }
 
-.action-type {
+.action-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 18px;
+  flex-wrap: wrap;
+}
+
+.location-indicator {
   font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.5px;
-  color: rgba(255, 255, 255, 0.4);
-  margin-bottom: 4px;
-  text-transform: uppercase;
+  font-weight: 500;
+  letter-spacing: 0.12px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  line-height: 1.3;
+  backdrop-filter: blur(4px);
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  color: rgba(255, 255, 255, 0.65);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.action-card.focused .location-indicator {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.7);
 }
 
 .action-text {
@@ -330,6 +371,9 @@ body {
   font-weight: 500;
   color: rgba(255, 255, 255, 0.9);
   line-height: 1.4;
+  flex: 0 1 auto;
+  max-width: 100%;
+  text-align: center;
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;

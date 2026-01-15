@@ -28,7 +28,7 @@ TOOL_BASE_PROPERTIES = {
     },
     "title": {
         "type": "string",
-        "description": "Short summary for UI display (max 120 chars)"
+        "description": "Short summary for UI display (max 120 chars). MUST be clean and simple: no time information, no location, no colons, no dashes, no prefixes like 'Reminder:' or 'Task:'. Just the core essence of what this is about."
     },
     "body": {
         "type": "string",
@@ -295,10 +295,11 @@ Analyze the transcript and create one or more nodes by calling the tools below.
 1. You MUST call at least one tool. Do not respond with text.
 2. If the transcript includes multiple distinct intents, call multiple tools (one per node).
 3. All timestamps MUST be ISO 8601 with the same timezone offset as user_time_iso. Do not convert times to UTC.
-4. Include 1-5 evidence quotes copied EXACTLY from the transcript
-5. Set confidence 0.0-1.0 honestly. Lower if ambiguous.
-6. Only use location if transcript implies it ("here", "near me", "when I get there")
-7. Set needs_clarification=true if time is ambiguous, with a clarification_question
+4. The title must be content-only. NEVER include time, date, location, or type prefixes like "Reminder:", "Note:", or "Todo:".
+5. Include 1-5 evidence quotes copied EXACTLY from the transcript
+6. Set confidence 0.0-1.0 honestly. Lower if ambiguous.
+7. Only use location if transcript implies it ("here", "near me", "when I get there")
+8. Set needs_clarification=true if time is ambiguous, with a clarification_question
 
 ## Time Resolution Rules
 Assume the user's timezone is the offset in user_time_iso. Keep times as spoken in that timezone:
@@ -326,7 +327,13 @@ Assume the user's timezone is the offset in user_time_iso. Keep times as spoken 
 ## Output Requirements
 - schema_version: must be "braindump.node.v1"
 - node_type: must match the tool you're calling
-- title: Short, clear UI label (max 120 chars)
+- title: Short, clear UI label (max 120 chars). CRITICAL: The title must be clean and simple:
+  * NEVER include time information (no "at 3pm", "tomorrow", "in 2 hours", etc.)
+  * NEVER include location information (no "at the office", "near me", etc.)
+  * NEVER use colons or dashes (no "Reminder:", "Task -", etc.)
+  * NEVER use prefixes like "Reminder:", "Todo:", "Note:", "Calendar:"
+  * Just the core essence: "Call mom", "Buy groceries", "Team meeting", "Project update"
+  * Time and location go in their respective fields, NOT in the title
 - body: Cleaned, coherent version of intent (max 4000 chars)
 - tags: Relevant keywords (max 12 tags)
 - status: Usually "active" for new nodes
@@ -343,6 +350,7 @@ Assume the user's timezone is the offset in user_time_iso. Keep times as spoken 
 Transcript: "remind me to call mom tomorrow at 7"
 user_time_iso: "2026-01-12T17:00:00-05:00"
 → Call create_reminder_node with:
+- title: "Call mom" (NOT "Reminder: Call mom tomorrow at 7" or "Call mom at 7")
 - trigger_datetime_iso: "2026-01-13T07:00:00-05:00" (tomorrow = Jan 13, at 7:00)
 - Note: "7" likely means 7 PM given context, but 07:00 is ambiguous
 - If unsure AM/PM: needs_clarification=true, ask "Did you mean 7 AM or 7 PM?"
@@ -350,6 +358,7 @@ user_time_iso: "2026-01-12T17:00:00-05:00"
 ### Example 2: Todo without due date
 Transcript: "I need to buy groceries and pick up dry cleaning"
 → Call create_todo_node with:
+- title: "Buy groceries and pick up dry cleaning" (NOT "Todo: Buy groceries" or "Task - Buy groceries")
 - task: "Buy groceries and pick up dry cleaning"
 - due.kind: "unspecified"
 - due.needs_clarification: false (no time mentioned is okay for todos)
@@ -359,6 +368,7 @@ Transcript: "I need to buy groceries and pick up dry cleaning"
 Transcript: "set up a meeting with Sam next week"
 user_time_iso: "2026-01-12T17:00:00-05:00"
 → Call create_calendar_placeholder_node with:
+- title: "Meeting with Sam" (NOT "Calendar: Meeting with Sam next week" or "Meeting with Sam - next week")
 - event_title: "Meeting with Sam"
 - start.kind: "relative"
 - start.original_text: "next week"
