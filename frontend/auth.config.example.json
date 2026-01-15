@@ -5,10 +5,12 @@
   "scopes": ["openid", "email", "profile"],
   "region": "us-east-1",
   "identityPoolId": "us-east-1:b05f5ee8-fda8-43a4-8d31-a8f036946eb4",
+  "apiEndpoint": "https://4miiwjzbv6.execute-api.us-east-1.amazonaws.com/Prod",
   "transcribeLanguageCode": "en-US",
   "transcribeSampleRate": 16000,
   "google": {
-    "clientId": "889539163514-10nft2cs9sg6r66ssrusa649qm82kajr.apps.googleusercontent.com",
+    "clientId": "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com",
+    "clientSecret": "YOUR_GOOGLE_CLIENT_SECRET",
     "redirectUri": "http://127.0.0.1:4387/callback",
     "scopes": [
       "openid",

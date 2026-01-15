@@ -15,11 +15,16 @@ const { execSync } = require("child_process");
 const { ensureValidTokens, loadConfig, loginInteractive, clearTokens } = require("./auth");
 const { loginGoogleInteractive } = require("./google_auth");
 const { createTranscribeSession } = require("./transcribe");
+const { OAuthServer, exchangeCodeForTokens, decodeJWT } = require("./oauth-server");
+const appleReminders = require("./apple-reminders");
 
 let mainWindow = null;
 let dashboardWindow = null;
 let tray = null;
 let isShortcutHeld = false;
+
+// OAuth server instance
+let oauthServer = new OAuthServer();
 
 // Transcription state
 const transcribeSession = createTranscribeSession();
@@ -210,7 +215,7 @@ function safeSend(channel, ...args) {
 }
 
 // creates the overlay window with some special settings, like transparent and always on top, no taskbar
-function createWindow() { 
+function createWindow() {
   const { width: screenWidth, height: screenHeight } =
     screen.getPrimaryDisplay().workAreaSize;
 
@@ -267,14 +272,14 @@ function showWindow() {
     const currentDisplay = screen.getDisplayNearestPoint(cursorPoint);
     const { width: screenWidth, height: screenHeight } = currentDisplay.workAreaSize;
     const { x: screenX, y: screenY } = currentDisplay.workArea;
-    
+
     const windowWidth = 400;
     const windowHeight = 450;
-    
+
     // Calculate position at bottom center of the current screen
     const newX = Math.round(screenX + (screenWidth - windowWidth) / 2);
     const newY = screenY + screenHeight - windowHeight - 5;
-    
+
     // Use setBounds for more reliable multi-monitor positioning
     mainWindow.setBounds({
       x: newX,
@@ -282,7 +287,7 @@ function showWindow() {
       width: windowWidth,
       height: windowHeight
     });
-    
+
     // Ensure window is visible on all workspaces (helps with multi-monitor)
     mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 
@@ -380,44 +385,44 @@ function createTray() {
   // Create a small brain icon for the menu bar (PNG required for macOS tray)
   const iconPath = path.join(__dirname, "renderer", "brain logo pink.png");
   let trayIcon = nativeImage.createFromPath(iconPath);
-  
+
   // Get original size and calculate proper resize maintaining aspect ratio
   const originalSize = trayIcon.getSize();
   const targetHeight = 18;
   const aspectRatio = originalSize.width / originalSize.height;
   const targetWidth = Math.round(targetHeight * aspectRatio);
-  
+
   trayIcon = trayIcon.resize({ width: targetWidth, height: targetHeight });
   trayIcon.setTemplateImage(true); // Makes it adapt to dark/light mode on macOS
-  
+
   tray = new Tray(trayIcon);
   tray.setToolTip('SecondBrain');
-  
+
   // Click tray icon to open dashboard
   tray.on('click', () => {
     openDashboard();
   });
-  
+
   // Right-click context menu
   const contextMenu = Menu.buildFromTemplate([
-    { 
-      label: 'Open Dashboard', 
-      click: () => openDashboard() 
+    {
+      label: 'Open Dashboard',
+      click: () => openDashboard()
     },
-    { 
-      label: 'Activate Overlay (⌥⇧Space)', 
-      click: () => showWindow() 
+    {
+      label: 'Activate Overlay (⌥⇧Space)',
+      click: () => showWindow()
     },
     { type: 'separator' },
-    { 
-      label: 'Quit SecondBrain', 
+    {
+      label: 'Quit SecondBrain',
       click: () => {
         app.isQuitting = true;
         app.quit();
       }
     }
   ]);
-  
+
   tray.setContextMenu(contextMenu);
 }
 
@@ -495,12 +500,12 @@ app.whenReady().then(async () => {
   ipcMain.handle("open-dashboard", () => {
     openDashboard();
   });
-  
+
   // IPC for window controls from renderer
   ipcMain.handle("dashboard-minimize", () => {
     if (dashboardWindow) dashboardWindow.minimize();
   });
-  
+
   ipcMain.handle("dashboard-maximize", () => {
     if (dashboardWindow) {
       if (dashboardWindow.isMaximized()) {
@@ -510,7 +515,7 @@ app.whenReady().then(async () => {
       }
     }
   });
-  
+
   ipcMain.handle("dashboard-close", () => {
     if (dashboardWindow) dashboardWindow.close();
   });
@@ -588,24 +593,25 @@ app.whenReady().then(async () => {
       return { success: false, error: err.message };
     }
   });
+
   ipcMain.handle("complete-node", async (event, node, nodeId) => {
     try {
       // Get node_id from parameter, node object, or generate from node if available
       const finalNodeId = nodeId || node?.node_id || node?.id;
-      
+
       if (!finalNodeId) {
         throw new Error("Node ID is required to complete node");
       }
-      
+
       // Construct endpoint with node_id in path (matches API Gateway route)
       const endpoint = `node/${finalNodeId}/complete`;
-      
+
       const body = {
         node: node,
         node_id: finalNodeId,
         captured_at_iso: node?.captured_at_iso || new Date().toISOString(),
       };
-      
+
       const result = await callApi(endpoint, "POST", body);
       return { success: true, ...result };
     } catch (err) {
@@ -650,6 +656,276 @@ app.whenReady().then(async () => {
     }
   });
 
+  // Google OAuth: Start authentication flow
+  ipcMain.handle("google-connect", async () => {
+    try {
+      const { code, codeVerifier } = await oauthServer.startAuthFlow();
+      const tokens = await exchangeCodeForTokens(code, codeVerifier);
+
+      // Extract user info from ID token if available
+      let providerUserId = null;
+      if (tokens.id_token) {
+        const claims = decodeJWT(tokens.id_token);
+        if (claims) {
+          providerUserId = claims.sub;
+        }
+      }
+
+      return {
+        success: true,
+        tokens: {
+          access_token: tokens.access_token,
+          refresh_token: tokens.refresh_token,
+          expires_in: tokens.expires_in,
+          scope: tokens.scope,
+        },
+        providerUserId,
+      };
+    } catch (error) {
+      console.error("Google OAuth error:", error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Google OAuth: Disconnect (delete token from backend)
+  ipcMain.handle("google-disconnect", async (event, cognitoToken) => {
+    try {
+      const result = await callApi("integrations/google/token", "DELETE");
+      return { success: result.statusCode < 300, ...result.body };
+    } catch (error) {
+      console.error("Google disconnect error:", error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Google OAuth: Check connection status
+  ipcMain.handle("google-status", async (event, cognitoToken) => {
+    try {
+      const result = await callApi("integrations/google/token", "GET");
+      return result.body;
+    } catch (error) {
+      console.error("Google status error:", error);
+      return { connected: false, error: error.message };
+    }
+  });
+
+  // Google OAuth: Store refresh token in backend
+  ipcMain.handle("store-google-token", async (event, { cognitoToken, refreshToken, providerUserId, scope }) => {
+    try {
+      const result = await callApi("integrations/google/token", "POST", {
+        refresh_token: refreshToken,
+        provider_user_id: providerUserId,
+        scope: scope,
+      });
+      return { success: result.statusCode < 300, ...result.body };
+    } catch (error) {
+      console.error("Store token error:", error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Execute an action (Gmail send/draft, Calendar event, etc.)
+  ipcMain.handle("execute-action", async (event, { cognitoToken, action }) => {
+    try {
+      const result = await callApi("actions/execute", "POST", action);
+      return { success: result.statusCode < 300, ...result.body };
+    } catch (error) {
+      console.error("Execute action error:", error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Fetch active tasks/nodes from backend
+  ipcMain.handle("fetch-tasks", async (event, cognitoToken) => {
+    try {
+      const result = await callApi("nodes/active", "GET");
+      return { success: result.statusCode < 300, ...result.body };
+    } catch (error) {
+      console.error("Fetch tasks error:", error);
+      return { success: false, error: error.message, tasks: [] };
+    }
+  });
+
+  // ============================================
+  // Local Google API Execution (for testing without backend)
+  // ============================================
+
+  // Gmail: Send email or create draft directly using access token
+  ipcMain.handle("execute-gmail-local", async (event, { accessToken, action }) => {
+    try {
+      const { to, subject, body, executionMode } = action;
+
+      // Create email in RFC 2822 format
+      const emailLines = [
+        `To: ${to}`,
+        `Subject: ${subject}`,
+        "Content-Type: text/plain; charset=utf-8",
+        "",
+        body,
+      ];
+      const email = emailLines.join("\r\n");
+
+      // Base64url encode the email
+      const encodedEmail = Buffer.from(email)
+        .toString("base64")
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=+$/, "");
+
+      let endpoint;
+      let requestBody;
+
+      if (executionMode === "draft") {
+        // Create draft
+        endpoint = "https://gmail.googleapis.com/gmail/v1/users/me/drafts";
+        requestBody = JSON.stringify({
+          message: { raw: encodedEmail },
+        });
+      } else {
+        // Send email
+        endpoint = "https://gmail.googleapis.com/gmail/v1/users/me/messages/send";
+        requestBody = JSON.stringify({ raw: encodedEmail });
+      }
+
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: requestBody,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error?.message || `Gmail API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log(`[Gmail] ${executionMode === "draft" ? "Draft created" : "Email sent"}:`, data.id);
+
+      return {
+        success: true,
+        messageId: data.id,
+        mode: executionMode,
+      };
+    } catch (error) {
+      console.error("Gmail local execution error:", error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Calendar: Create event directly using access token
+  ipcMain.handle("execute-calendar-local", async (event, { accessToken, action }) => {
+    try {
+      const { title, start_time, end_time, description, attendees, timezone } = action;
+
+      // Default end time to 1 hour after start if not provided
+      const startDate = new Date(start_time);
+      const endDate = end_time ? new Date(end_time) : new Date(startDate.getTime() + 60 * 60 * 1000);
+
+      const eventBody = {
+        summary: title,
+        description: description || "",
+        start: {
+          dateTime: startDate.toISOString(),
+          timeZone: timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+        },
+        end: {
+          dateTime: endDate.toISOString(),
+          timeZone: timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+        },
+      };
+
+      // Add attendees if provided
+      if (attendees && attendees.length > 0) {
+        eventBody.attendees = attendees.map((email) => ({ email }));
+      }
+
+      const response = await fetch(
+        "https://www.googleapis.com/calendar/v3/calendars/primary/events",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(eventBody),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error?.message || `Calendar API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log("[Calendar] Event created:", data.id);
+
+      return {
+        success: true,
+        eventId: data.id,
+        htmlLink: data.htmlLink,
+      };
+    } catch (error) {
+      console.error("Calendar local execution error:", error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // ============================================
+  // Apple Reminders (macOS only)
+  // ============================================
+
+  // Check if Apple Reminders is available
+  ipcMain.handle("apple-reminders-available", async () => {
+    return appleReminders.isAvailable();
+  });
+
+  // Create a reminder in Apple Reminders app
+  ipcMain.handle("execute-apple-reminder", async (event, { action }) => {
+    if (!appleReminders.isAvailable()) {
+      return { success: false, error: "Apple Reminders is only available on macOS" };
+    }
+
+    try {
+      const { title, due_date, notes, list } = action;
+
+      // Parse due date if provided
+      let dueDate = null;
+      if (due_date) {
+        dueDate = new Date(due_date);
+        if (isNaN(dueDate.getTime())) {
+          dueDate = null;
+        }
+      }
+
+      const result = await appleReminders.createReminder(title, {
+        dueDate,
+        notes,
+        listName: list || null, // null = use system default list
+      });
+
+      if (result.success) {
+        console.log("[Apple Reminders] Reminder created:", title);
+      } else {
+        console.warn("[Apple Reminders] Failed:", result.error);
+      }
+
+      return result;
+    } catch (error) {
+      console.error("Apple Reminder error:", error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Get available reminder lists
+  ipcMain.handle("apple-reminders-lists", async () => {
+    if (!appleReminders.isAvailable()) {
+      return { success: false, error: "Apple Reminders is only available on macOS" };
+    }
+    return appleReminders.getLists();
+  });
 
   // Hide dock initially (macOS) - we'll show it when dashboard opens
   if (process.platform === "darwin") {

@@ -4,10 +4,13 @@ node_modules/
 # Documentation
 /GEMINI.md
 
-# Environment variables (IMPORTANT - contains secrets!)
+# Environment files (may contain secrets)
 .env
 .env.local
-.env*.local
+.env.*.local
+
+# Auth config with secrets (use auth.config.example.json as template)
+frontend/auth.config.json
 
 # OS generated files
 .DS_Store
@@ -40,3 +43,6 @@ coverage/
 
 # AWS/credentials (if any local config)
 *.pem
+
+# AWS SAM build artifacts (machine-specific paths)
+.aws-sam/
