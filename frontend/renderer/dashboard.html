@@ -130,14 +130,14 @@
           </div>
         </header>
 
-        <!-- 3-Column Kanban Board - No Scroll, All Expanded -->
+        <!-- 4-Column Kanban Board - No Scroll, All Expanded -->
         <div class="kanban-board">
           
           <!-- Column 1: Outgoing Tasks -->
           <section class="kanban-column">
             <div class="column-header">
               <div class="column-title">
-                <h2>OUTGOING TASKS</h2>
+                <h2>TASKS</h2>
                 <span class="count-badge" id="pending-count">0</span>
               </div>
               <button class="column-menu"><i data-feather="more-horizontal"></i></button>
@@ -171,6 +171,20 @@
               <button class="column-menu"><i data-feather="more-horizontal"></i></button>
             </div>
             <div class="column-content" id="notes-list">
+              <!-- Cards populated by JS -->
+            </div>
+          </section>
+
+          <!-- Column 4: Calendar -->
+          <section class="kanban-column">
+            <div class="column-header">
+              <div class="column-title">
+                <h2>CALENDAR</h2>
+                <span class="count-badge calendar-badge" id="calendar-count">0</span>
+              </div>
+              <button class="column-menu"><i data-feather="more-horizontal"></i></button>
+            </div>
+            <div class="column-content" id="calendar-list">
               <!-- Cards populated by JS -->
             </div>
           </section>

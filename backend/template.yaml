@@ -231,6 +231,22 @@ Resources:
             Path: /node/{node_id}
             Method: PATCH
 
+  DeleteNodeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handlers.delete_node.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref DynamoDBTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BackendApi
+            Path: /node/{node_id}
+            Method: DELETE
+
   CompleteNodeFunction:
     Type: AWS::Serverless::Function
     Properties:

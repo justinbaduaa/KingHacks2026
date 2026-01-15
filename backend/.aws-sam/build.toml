@@ -7,6 +7,6 @@ architecture = "x86_64"
 handler = "handlers.ingest.handler"
 manifest_hash = ""
 packagetype = "Zip"
-functions = ["IngestFunction", "GetActiveNodesFunction", "PatchNodeFunction", "CompleteNodeFunction", "GoogleTokenFunction", "GoogleGmailLabelsFunction", "GmailActionFunction", "CalendarActionFunction", "ExecuteActionFunction", "WhoAmIFunction"]
+functions = ["IngestFunction", "GetActiveNodesFunction", "PatchNodeFunction", "DeleteNodeFunction", "CompleteNodeFunction", "GoogleTokenFunction", "GoogleGmailLabelsFunction", "GmailActionFunction", "CalendarActionFunction", "ExecuteActionFunction", "WhoAmIFunction"]
 
 [layer_build_definitions]

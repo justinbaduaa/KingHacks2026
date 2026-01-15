@@ -4,17 +4,20 @@
 const FALLBACK_TASKS = [];
 const FALLBACK_REMINDERS = [];
 const FALLBACK_NOTES = [];
+const FALLBACK_CALENDAR = [];
 const FALLBACK_ACTIVITY = [];
 
 // ===== DOM Elements =====
 const pendingList = document.getElementById('pending-list');
 const remindersList = document.getElementById('reminders-list');
 const notesList = document.getElementById('notes-list');
+const calendarList = document.getElementById('calendar-list');
 const activityTimeline = document.getElementById('activity-timeline');
 
 const pendingCount = document.getElementById('pending-count');
 const remindersCount = document.getElementById('reminders-count');
 const notesCount = document.getElementById('notes-count');
+const calendarCount = document.getElementById('calendar-count');
 
 const loginBtn = document.getElementById('login-btn');
 const loginView = document.getElementById('login-view');
@@ -27,45 +30,115 @@ const viewSettings = document.getElementById('view-settings');
 
 // ===== Render Functions =====
 
-function getIconForType(type) {
-  switch(type) {
-    case 'email': return 'mail';
-    case 'calendar': return 'calendar';
-    case 'note': return 'file-text';
-    case 'reminder': return 'bell';
-    case 'task': return 'check-square';
-    default: return 'mic';
-  }
-}
-
-function renderCard(item) {
-  const statusBadge = item.status 
-    ? `<span class="status-badge ${item.status}">${item.status}</span>` 
-    : '';
-  
+function renderTaskCard(item) {
   return `
-    <div class="kanban-card" data-id="${item.id}" data-node-id="${item.nodeId || ''}" data-type="${item.type}">
-      <button class="card-delete" title="Delete">
-        <i data-feather="x"></i>
-      </button>
-      <h3 class="card-title">${item.title}</h3>
-      <p class="card-description">${item.description}</p>
-      <span class="card-tag ${item.type}">${item.type.charAt(0).toUpperCase() + item.type.slice(1)}</span>
-      <div class="card-meta">
-        <span class="timestamp">${item.timestamp}</span>
-        ${statusBadge}
+    <div class="kanban-card task-card" data-id="${item.id}" data-node-id="${item.nodeId || ''}" data-type="task">
+      <div class="card-actions">
+        <button class="card-action-btn card-delete" type="button" data-action="delete" title="Delete">
+          <i data-feather="x"></i>
+        </button>
+      </div>
+      <div class="card-main task-main">
+        <button class="card-action-btn card-check" type="button" data-action="complete" title="Mark done">
+          <i data-feather="check"></i>
+        </button>
+        <div class="card-main-body">
+          <h3 class="card-title">${item.title}</h3>
+          <div class="card-meta-row">
+            <span class="card-date">${item.dateLabel}</span>
+            <span class="card-time">${item.timeLabel}</span>
+          </div>
+        </div>
       </div>
     </div>
   `;
 }
 
-function renderCards(container, items, countEl) {
+function renderReminderCard(item) {
+  return `
+    <div class="kanban-card reminder-card" data-id="${item.id}" data-node-id="${item.nodeId || ''}" data-type="reminder">
+      <div class="card-actions">
+        <button class="card-action-btn card-send" type="button" data-action="send-reminder" title="Send to Apple Reminders">
+          <i data-feather="send"></i>
+        </button>
+        <button class="card-action-btn card-delete" type="button" data-action="delete" title="Delete">
+          <i data-feather="x"></i>
+        </button>
+      </div>
+      <div class="card-header">
+        <span class="card-pill reminder">Reminder</span>
+      </div>
+      <h3 class="card-title">${item.title}</h3>
+      <div class="card-meta-row">
+        <span class="card-date">${item.dateLabel}</span>
+        <span class="card-time">${item.timeLabel}</span>
+      </div>
+    </div>
+  `;
+}
+
+function renderNoteCard(item) {
+  return `
+    <div class="kanban-card note-card" data-id="${item.id}" data-node-id="${item.nodeId || ''}" data-type="note">
+      <div class="card-actions">
+        <button class="card-action-btn card-delete" type="button" data-action="delete" title="Delete">
+          <i data-feather="x"></i>
+        </button>
+      </div>
+      <div class="card-header">
+        <span class="card-pill note">Note</span>
+      </div>
+      <h3 class="card-title">${item.title}</h3>
+      <p class="card-description">${item.description || 'No details yet'}</p>
+    </div>
+  `;
+}
+
+function renderCalendarCard(item) {
+  return `
+    <div class="kanban-card calendar-card" data-id="${item.id}" data-node-id="${item.nodeId || ''}" data-type="calendar">
+      <div class="card-actions">
+        <button class="card-action-btn card-send" type="button" data-action="send-calendar" title="Send to Calendar">
+          <i data-feather="send"></i>
+        </button>
+        <button class="card-action-btn card-delete" type="button" data-action="delete" title="Delete">
+          <i data-feather="x"></i>
+        </button>
+      </div>
+      <div class="card-header">
+        <span class="card-pill calendar">Calendar</span>
+      </div>
+      <h3 class="card-title">${item.title}</h3>
+      <div class="card-detail-row">
+        <span class="detail-label">Location</span>
+        <span class="detail-value">${item.locationLabel}</span>
+      </div>
+      <div class="card-detail-row">
+        <span class="detail-label">Date</span>
+        <span class="detail-value">${item.dateLabel}</span>
+      </div>
+      <div class="card-detail-row">
+        <span class="detail-label">Time</span>
+        <span class="detail-value">${item.timeLabel}</span>
+      </div>
+    </div>
+  `;
+}
+
+function renderCard(item) {
+  if (item.type === 'reminder') return renderReminderCard(item);
+  if (item.type === 'note') return renderNoteCard(item);
+  if (item.type === 'calendar') return renderCalendarCard(item);
+  return renderTaskCard(item);
+}
+
+function renderCards(container, items, countEl, emptyLabel) {
   if (!container) return;
   
   if (items.length === 0) {
     container.innerHTML = `
       <div class="empty-state">
-        <p>No items yet</p>
+        <p>${emptyLabel || 'No items yet'}</p>
       </div>
     `;
   } else {
@@ -110,6 +183,58 @@ function renderActivity(container, activityData) {
   container.innerHTML = html;
 }
 
+function parseDateTime(value) {
+  if (!value || typeof value !== 'string') return null;
+  const dateOnlyMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (dateOnlyMatch) {
+    const [, year, month, day] = dateOnlyMatch.map(Number);
+    return new Date(year, month - 1, day);
+  }
+  const dateTimeMatch = value.match(
+    /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?/
+  );
+  if (dateTimeMatch) {
+    const [, year, month, day, hour, minute, second] = dateTimeMatch;
+    return new Date(
+      Number(year),
+      Number(month) - 1,
+      Number(day),
+      Number(hour),
+      Number(minute),
+      Number(second || 0)
+    );
+  }
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatDateLabel(date) {
+  if (!date) return 'Date TBD';
+  return date.toLocaleDateString([], {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+function formatTimeLabel(date, hasTime) {
+  if (!date) return 'Time TBD';
+  if (!hasTime) return 'All day';
+  return date.toLocaleTimeString([], {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function buildDateTimeLabels(value) {
+  const date = parseDateTime(value);
+  const hasTime = Boolean(value && value.includes('T'));
+  return {
+    dateLabel: formatDateLabel(date),
+    timeLabel: formatTimeLabel(date, hasTime),
+  };
+}
+
 function formatRelativeTime(isoString) {
   if (!isoString) return 'Just now';
   const date = new Date(isoString);
@@ -136,18 +261,71 @@ function normalizeNodeType(nodeType) {
 
 function deriveCardFromNode(node) {
   const nodeType = normalizeNodeType(node.node_type);
-  const title = node.title || node.todo?.task || node.reminder?.reminder_text || node.body || 'Untitled';
-  const description = node.body || node.note?.content || node.todo?.task || node.reminder?.reminder_text || '';
-  const status = node.status === 'completed' || node.todo?.status_detail === 'done' ? 'completed' : 'pending';
+  const nodeId = node.node_id || node.id;
+  const baseTitle = node.title || node.todo?.task || node.reminder?.reminder_text || node.body || 'Untitled';
+
+  if (nodeType === 'task') {
+    const dueDateTime = node.todo?.due_datetime_iso || node.todo?.due?.resolved_start_iso;
+    const dueDate = node.todo?.due_date_iso;
+    const labels = buildDateTimeLabels(dueDateTime || dueDate);
+
+    return {
+      id: nodeId,
+      nodeId,
+      type: nodeType,
+      title: baseTitle,
+      dateLabel: labels.dateLabel,
+      timeLabel: dueDateTime ? labels.timeLabel : (dueDate ? 'All day' : 'No due time'),
+    };
+  }
+
+  if (nodeType === 'reminder') {
+    const trigger = node.reminder?.trigger_datetime_iso || node.reminder?.when?.resolved_start_iso || node.time_interpretation?.resolved_start_iso;
+    const labels = buildDateTimeLabels(trigger);
+    return {
+      id: nodeId,
+      nodeId,
+      type: nodeType,
+      title: baseTitle,
+      dateLabel: labels.dateLabel,
+      timeLabel: labels.timeLabel,
+    };
+  }
+
+  if (nodeType === 'calendar') {
+    const startIso = node.calendar_placeholder?.start_datetime_iso || node.calendar_placeholder?.start?.resolved_start_iso;
+    let endIso = node.calendar_placeholder?.end_datetime_iso || node.calendar_placeholder?.start?.resolved_end_iso;
+    const durationMinutes = node.calendar_placeholder?.duration_minutes;
+    if (!endIso && startIso && durationMinutes) {
+      const startDate = parseDateTime(startIso);
+      if (startDate) {
+        endIso = new Date(startDate.getTime() + durationMinutes * 60000).toISOString();
+      }
+    }
+    const startLabels = buildDateTimeLabels(startIso);
+    const endLabels = buildDateTimeLabels(endIso);
+    const timeLabel = endIso && endLabels.timeLabel !== 'Time TBD'
+      ? `${startLabels.timeLabel} - ${endLabels.timeLabel}`
+      : startLabels.timeLabel;
+
+    return {
+      id: nodeId,
+      nodeId,
+      type: nodeType,
+      title: node.calendar_placeholder?.event_title || baseTitle,
+      locationLabel: node.calendar_placeholder?.location_text || 'Location TBD',
+      dateLabel: startLabels.dateLabel,
+      timeLabel,
+    };
+  }
 
   return {
-    id: node.node_id || node.id,
-    nodeId: node.node_id || node.id,
-    type: nodeType,
-    title,
-    description,
+    id: nodeId,
+    nodeId,
+    type: 'note',
+    title: baseTitle,
+    description: node.body || node.note?.content || '',
     timestamp: formatRelativeTime(node.created_at_iso || node.captured_at_iso),
-    status: nodeType === 'note' ? null : status,
   };
 }
 
@@ -277,6 +455,9 @@ function setupThemeToggle() {
 function setupCardInteractions() {
   // Add ripple effect on card click
   document.addEventListener('click', (e) => {
+    if (e.target.closest('[data-action]')) {
+      return;
+    }
     const card = e.target.closest('.kanban-card');
     if (card) {
       // Visual feedback
@@ -355,9 +536,10 @@ function setupSearch() {
 
 async function loadDashboardData() {
   if (!window.braindump || !window.braindump.getActiveNodes) {
-    renderCards(pendingList, FALLBACK_TASKS, pendingCount);
-    renderCards(remindersList, FALLBACK_REMINDERS, remindersCount);
-    renderCards(notesList, FALLBACK_NOTES, notesCount);
+    renderCards(pendingList, FALLBACK_TASKS, pendingCount, 'No tasks yet');
+    renderCards(remindersList, FALLBACK_REMINDERS, remindersCount, 'No reminders yet');
+    renderCards(notesList, FALLBACK_NOTES, notesCount, 'No notes yet');
+    renderCards(calendarList, FALLBACK_CALENDAR, calendarCount, 'No calendar items yet');
     renderActivity(activityTimeline, FALLBACK_ACTIVITY);
     return;
   }
@@ -374,48 +556,102 @@ async function loadDashboardData() {
     const pendingCards = [];
     const reminderCards = [];
     const noteCards = [];
+    const calendarCards = [];
 
     cards.forEach((card) => {
       if (card.type === 'reminder') {
         reminderCards.push(card);
       } else if (card.type === 'note') {
         noteCards.push(card);
+      } else if (card.type === 'calendar') {
+        calendarCards.push(card);
       } else {
         pendingCards.push(card);
       }
     });
 
-    renderCards(pendingList, pendingCards, pendingCount);
-    renderCards(remindersList, reminderCards, remindersCount);
-    renderCards(notesList, noteCards, notesCount);
+    renderCards(pendingList, pendingCards, pendingCount, 'No tasks yet');
+    renderCards(remindersList, reminderCards, remindersCount, 'No reminders yet');
+    renderCards(notesList, noteCards, notesCount, 'No notes yet');
+    renderCards(calendarList, calendarCards, calendarCount, 'No calendar items yet');
     renderActivity(activityTimeline, buildActivityFromNodes(nodes));
   } catch (err) {
     console.error('[DASHBOARD] Failed to load nodes:', err);
-    renderCards(pendingList, FALLBACK_TASKS, pendingCount);
-    renderCards(remindersList, FALLBACK_REMINDERS, remindersCount);
-    renderCards(notesList, FALLBACK_NOTES, notesCount);
+    renderCards(pendingList, FALLBACK_TASKS, pendingCount, 'No tasks yet');
+    renderCards(remindersList, FALLBACK_REMINDERS, remindersCount, 'No reminders yet');
+    renderCards(notesList, FALLBACK_NOTES, notesCount, 'No notes yet');
+    renderCards(calendarList, FALLBACK_CALENDAR, calendarCount, 'No calendar items yet');
     renderActivity(activityTimeline, FALLBACK_ACTIVITY);
   }
 }
 
 function setupDeleteHandlers() {
   document.addEventListener('click', async (e) => {
-    const deleteBtn = e.target.closest('.card-delete');
-    if (!deleteBtn) return;
+    const actionBtn = e.target.closest('[data-action]');
+    if (!actionBtn) return;
 
     e.preventDefault();
     e.stopPropagation();
 
-    const card = deleteBtn.closest('.kanban-card');
+    const card = actionBtn.closest('.kanban-card');
     if (!card) return;
 
     const nodeId = card.dataset.nodeId;
+    const action = actionBtn.dataset.action;
+
+    if (action === 'send-reminder') {
+      console.log('[DASHBOARD] Reminder send placeholder', nodeId);
+      return;
+    }
+
+    if (action === 'send-calendar') {
+      console.log('[DASHBOARD] Calendar send placeholder', nodeId);
+      return;
+    }
+
     if (!nodeId || !window.braindump?.deleteNode) {
       return;
     }
 
-    const shouldDelete = window.confirm('Delete this item?');
-    if (!shouldDelete) return;
+    const existingConfirm = card.querySelector('.card-confirm');
+    if (existingConfirm) {
+      existingConfirm.remove();
+      return;
+    }
+
+    const confirmEl = document.createElement('div');
+    confirmEl.className = 'card-confirm';
+    confirmEl.innerHTML = `
+      <span>Confirm delete</span>
+      <button type="button" class="confirm-action" data-confirm="delete">Check</button>
+      <button type="button" class="confirm-cancel" data-confirm="cancel">Cancel</button>
+    `;
+    card.appendChild(confirmEl);
+    confirmEl.querySelector('.confirm-action')?.focus();
+  });
+
+  document.addEventListener('click', async (e) => {
+    const confirmBtn = e.target.closest('[data-confirm]');
+    if (!confirmBtn) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const card = confirmBtn.closest('.kanban-card');
+    if (!card) return;
+
+    const confirmBox = card.querySelector('.card-confirm');
+    const nodeId = card.dataset.nodeId;
+    if (!confirmBox) return;
+
+    if (confirmBtn.dataset.confirm === 'cancel') {
+      confirmBox.remove();
+      return;
+    }
+
+    if (!nodeId || !window.braindump?.deleteNode) {
+      return;
+    }
 
     const result = await window.braindump.deleteNode(nodeId);
     if (!result.success) {
@@ -425,6 +661,13 @@ function setupDeleteHandlers() {
 
     card.remove();
     loadDashboardData();
+  });
+
+  document.addEventListener('click', (e) => {
+    const confirmBox = document.querySelector('.card-confirm');
+    if (!confirmBox) return;
+    if (e.target.closest('.kanban-card')) return;
+    confirmBox.remove();
   });
 }
 

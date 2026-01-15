@@ -1276,7 +1276,7 @@ async function processAndShowAction() {
     console.log('[TRANSCRIPT] Collected:', transcript);
     try {
       // Send to Bedrock via backend
-      const result = await window.braindump.ingestTranscript(transcript, new Date().toISOString());
+      const result = await window.braindump.ingestTranscript(transcript);
       console.log('[INGEST] Result:', result);
 
       if (result.success && result.body) {

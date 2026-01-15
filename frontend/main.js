@@ -59,6 +59,18 @@ function getApiUrl() {
   return cachedApiUrl;
 }
 
+function toLocalIsoWithOffset(date = new Date()) {
+  const offsetMinutes = date.getTimezoneOffset();
+  const sign = offsetMinutes > 0 ? "-" : "+";
+  const pad = (value) => String(Math.floor(Math.abs(value))).padStart(2, "0");
+  const hours = pad(offsetMinutes / 60);
+  const minutes = pad(offsetMinutes % 60);
+  const local = new Date(date.getTime() - offsetMinutes * 60000)
+    .toISOString()
+    .replace("Z", "");
+  return `${local}${sign}${hours}:${minutes}`;
+}
+
 async function callApi(endpoint, method = "GET", body = null) {
   const apiUrl = getApiUrl();
   if (!apiUrl) {
@@ -293,8 +305,8 @@ function hideWindow() {
   }
 }
 
-// Creates the dashboard window - frameless, floating, magical
-function createDashboardWindow() {
+// Creates the dashboard window - starts with landing page, then transitions to dashboard
+function createDashboardWindow(skipLanding = false) {
   if (dashboardWindow && !dashboardWindow.isDestroyed()) {
     dashboardWindow.show();
     dashboardWindow.focus();
@@ -317,7 +329,7 @@ function createDashboardWindow() {
     transparent: false,
     vibrancy: 'under-window', // macOS native blur
     visualEffectState: 'active',
-    backgroundColor: '#00000000',
+    backgroundColor: '#fdfbf9',
     hasShadow: true,
     roundedCorners: true,
     show: false,
@@ -328,9 +340,11 @@ function createDashboardWindow() {
     },
   });
 
-  dashboardWindow.loadFile(path.join(__dirname, "renderer", "dashboard.html"));
+  // Start with landing page or dashboard based on skipLanding flag
+  const startPage = skipLanding ? "dashboard.html" : "landing.html";
+  dashboardWindow.loadFile(path.join(__dirname, "renderer", startPage));
 
-  // Show dock icon when dashboard is open (macOS)
+  // Show dock icon when window is open (macOS)
   dashboardWindow.once('ready-to-show', () => {
     if (process.platform === 'darwin') {
       app.dock.show();
@@ -352,6 +366,13 @@ function createDashboardWindow() {
   dashboardWindow.on('closed', () => {
     dashboardWindow = null;
   });
+}
+
+// Navigate from landing page to dashboard
+function navigateToDashboard() {
+  if (dashboardWindow && !dashboardWindow.isDestroyed()) {
+    dashboardWindow.loadFile(path.join(__dirname, "renderer", "dashboard.html"));
+  }
 }
 
 // Opens the dashboard window
@@ -498,6 +519,10 @@ app.whenReady().then(async () => {
   ipcMain.handle("dashboard-close", () => {
     if (dashboardWindow) dashboardWindow.close();
   });
+  
+  ipcMain.handle("navigate-to-dashboard", () => {
+    navigateToDashboard();
+  });
 
   // Backend integration handlers
   ipcMain.handle("auth-status", async () => {
@@ -556,7 +581,7 @@ app.whenReady().then(async () => {
     try {
       const body = {
         transcript: transcript,
-        user_time_iso: userTimeIso || new Date().toISOString(),
+        user_time_iso: userTimeIso || toLocalIsoWithOffset(),
         user_id: "demo",
         user_location: {
           kind: "unknown",
