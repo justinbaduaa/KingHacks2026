@@ -1,0 +1,22 @@
+{
+  "domain": "kinghacks2026-evan-v2.auth.us-east-1.amazoncognito.com",
+  "clientId": "7lkkus75825j7jsvg8tjpgg3eq",
+  "redirectUri": "http://127.0.0.1:4387/callback",
+  "scopes": ["openid", "email", "profile"],
+  "region": "us-east-1",
+  "identityPoolId": "us-east-1:9c463375-5b75-4946-8ff3-8b74e966eb87",
+  "apiEndpoint": "https://mg4hl6t4uk.execute-api.us-east-1.amazonaws.com/Prod",
+  "transcribeLanguageCode": "en-US",
+  "transcribeSampleRate": 16000,
+  "google": {
+    "clientId": "889539163514-10nft2cs9sg6r66ssrusa649qm82kajr.apps.googleusercontent.com",
+    "redirectUri": "http://127.0.0.1:4387/callback",
+    "scopes": [
+      "openid",
+      "email",
+      "profile",
+      "https://www.googleapis.com/auth/gmail.readonly",
+      "https://www.googleapis.com/auth/calendar"
+    ]
+  }
+}

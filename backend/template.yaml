@@ -7,15 +7,6 @@ Parameters:
     Type: String
     Default: kinghacks2026
     Description: Cognito hosted UI domain prefix (must be globally unique)
-  GoogleClientId:
-    Type: String
-    Default: ""
-    Description: Google OAuth client ID
-  GoogleClientSecret:
-    Type: String
-    NoEcho: true
-    Default: ""
-    Description: Google OAuth client secret
   GoogleDesktopClientId:
     Type: String
     Default: "889539163514-10nft2cs9sg6r66ssrusa649qm82kajr.apps.googleusercontent.com"
@@ -87,7 +78,6 @@ Resources:
         - email
       AutoVerifiedAttributes:
         - email
-      MfaConfiguration: OFF
       Policies:
         PasswordPolicy:
           MinimumLength: 8
@@ -101,22 +91,6 @@ Resources:
     Properties:
       Domain: !Ref CognitoDomainPrefix
       UserPoolId: !Ref CognitoUserPool
-
-  CognitoUserPoolGoogleIdP:
-    Type: AWS::Cognito::UserPoolIdentityProvider
-    Properties:
-      ProviderName: Google
-      ProviderType: Google
-      UserPoolId: !Ref CognitoUserPool
-      AttributeMapping:
-        email: email
-        given_name: given_name
-        family_name: family_name
-        name: name
-      ProviderDetails:
-        client_id: !Ref GoogleClientId
-        client_secret: !Ref GoogleClientSecret
-        authorize_scopes: "openid email profile"
 
   CognitoUserPoolClient:
     Type: AWS::Cognito::UserPoolClient
@@ -133,11 +107,10 @@ Resources:
         - profile
       SupportedIdentityProviders:
         - COGNITO
-        - Google
       CallbackURLs:
-        - http://localhost:3000/callback
+        - http://127.0.0.1:4387/callback
       LogoutURLs:
-        - http://localhost:3000/
+        - http://127.0.0.1:4387/logout
 
   CognitoIdentityPool:
     Type: AWS::Cognito::IdentityPool
@@ -200,11 +173,27 @@ Resources:
         authenticated: !GetAtt CognitoIdentityPoolAuthenticatedRole.Arn
         unauthenticated: !GetAtt CognitoIdentityPoolUnauthenticatedRole.Arn
 
+  # NOTE: Anthropic models auto-enable on first invoke. First-time users may need to submit use case details in Model Catalog.
   IngestFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: src/
       Handler: handlers.ingest.handler
+      Timeout: 30
+      MemorySize: 512
+      Environment:
+        Variables:
+          BEDROCK_MODEL_ID: arn:aws:bedrock:us-east-1:244271315858:inference-profile/us.anthropic.claude-haiku-4-5-20251001-v1:0
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref DynamoDBTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+                - bedrock:Converse
+                - bedrock:ConverseStream
+              Resource: "*"
       Events:
         Api:
           Type: Api
@@ -218,6 +207,9 @@ Resources:
     Properties:
       CodeUri: src/
       Handler: handlers.get_active_nodes.handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref DynamoDBTable
       Events:
         Api:
           Type: Api
@@ -244,6 +236,9 @@ Resources:
     Properties:
       CodeUri: src/
       Handler: handlers.complete_node.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref DynamoDBTable
       Events:
         Api:
           Type: Api
@@ -333,6 +328,19 @@ Resources:
             RestApiId: !Ref BackendApi
             Path: /actions/execute
             Method: POST
+
+  WhoAmIFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handlers.whoami.handler
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BackendApi
+            Path: /whoami
+            Method: GET
 
 Outputs:
   ApiEndpoint:
