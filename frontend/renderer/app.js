@@ -300,14 +300,39 @@ function createGhostTrail(card) {
 }
 
 // Approve a card (now with real task data)
-function approveCard(card, index) {
+async function approveCard(card, index) {
   if (!card || card.classList.contains('approved')) return;
   
   const task = currentTasks[index];
   console.log(`[APPROVED] Task ${index}: ${task?.text || 'unknown'}`);
+  console.log(`[APPROVED] Task object:`, task);
+  console.log(`[APPROVED] Has fullNode:`, !!task?.fullNode);
+  console.log(`[APPROVED] Has nodeId:`, !!task?.nodeId);
+  console.log(`[APPROVED] nodeId value:`, task?.nodeId);
+  console.log(`[APPROVED] fullNode keys:`, task?.fullNode ? Object.keys(task.fullNode) : 'none');
   
-  // TODO: Send approval to backend if needed
-  // if (task?.nodeId) { window.braindump.approveNode(task.nodeId); }
+  // Send node to backend to save to database
+  if (task?.fullNode && task?.nodeId) {
+    try {
+      console.log(`[COMPLETE_NODE] Sending node ${task.nodeId} to backend...`);
+      console.log(`[COMPLETE_NODE] Full node:`, JSON.stringify(task.fullNode, null, 2));
+      const result = await window.braindump.completeNode(task.fullNode, task.nodeId);
+      console.log(`[COMPLETE_NODE] API Response:`, result);
+      if (result.success) {
+        console.log(`[COMPLETE_NODE] Successfully saved node ${task.nodeId}`);
+      } else {
+        console.error(`[COMPLETE_NODE] Failed to save node:`, result.error);
+      }
+    } catch (err) {
+      console.error(`[COMPLETE_NODE] Error saving node:`, err);
+      console.error(`[COMPLETE_NODE] Error stack:`, err.stack);
+    }
+  } else {
+    console.warn(`[COMPLETE_NODE] Task missing fullNode or nodeId, skipping save`);
+    console.warn(`[COMPLETE_NODE] task:`, task);
+    console.warn(`[COMPLETE_NODE] task.fullNode:`, task?.fullNode);
+    console.warn(`[COMPLETE_NODE] task.nodeId:`, task?.nodeId);
+  }
   
   // Check if this is the last remaining card
   const remainingCards = cardsStack.querySelectorAll('.action-card:not(.approved):not(.dismissed)');
@@ -771,9 +796,20 @@ async function processAndShowAction() {
       const result = await window.braindump.ingestTranscript(transcript, new Date().toISOString());
       console.log('[INGEST] Result:', result);
       
-      if (result.success && result.body?.nodes) {
-        tasks = convertNodesToTasks(result.body.nodes);
-        currentTasks = tasks;
+      if (result.success && result.body) {
+        // Handle both array and single node responses
+        let nodes = result.body.nodes;
+        if (!nodes && result.body.node) {
+          nodes = [result.body.node];
+        }
+        if (nodes && nodes.length > 0) {
+          tasks = convertNodesToTasks(nodes);
+          currentTasks = tasks;
+        } else {
+          console.warn('[INGEST] No nodes in response, using fallback');
+          tasks = [{ type: 'Note', text: transcript }];
+          currentTasks = tasks;
+        }
       } else {
         console.warn('[INGEST] Failed or no nodes, using fallback');
         // Fallback: create a note from the transcript

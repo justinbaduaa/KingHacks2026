@@ -173,6 +173,9 @@ def handler(event, context):
         
         node_id = generate_node_id()
         
+        # Add node_id to the node object
+        node["node_id"] = node_id
+        
         nodes.append(node)
         node_ids.append(node_id)
         
@@ -224,6 +227,9 @@ def handler(event, context):
             node["global_warnings"] = list(set(existing_warnings + all_warnings))
             
             node_id = generate_node_id()
+            
+            # Add node_id to the node object
+            node["node_id"] = node_id
             
             nodes.append(node)
             node_ids.append(node_id)

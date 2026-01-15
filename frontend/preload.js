@@ -21,6 +21,9 @@ contextBridge.exposeInMainWorld('braindump', {
   // Backend integration - Ingest
   ingestTranscript: (text, timeIso) => ipcRenderer.invoke('ingest-transcript', text, timeIso),
   
+  // Backend integration - Complete Node
+  completeNode: (node, nodeId) => ipcRenderer.invoke('complete-node', node, nodeId),
+  
   // Auth
   authStatus: () => ipcRenderer.invoke('auth-status'),
   authLogin: () => ipcRenderer.invoke('auth-login'),

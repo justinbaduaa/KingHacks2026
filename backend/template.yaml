@@ -233,6 +233,9 @@ Resources:
     Properties:
       CodeUri: src/
       Handler: handlers.complete_node.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref DynamoDBTable
       Events:
         Api:
           Type: Api

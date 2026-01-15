@@ -507,6 +507,31 @@ app.whenReady().then(async () => {
       return { success: false, error: err.message };
     }
   });
+  ipcMain.handle("complete-node", async (event, node, nodeId) => {
+    try {
+      // Get node_id from parameter, node object, or generate from node if available
+      const finalNodeId = nodeId || node?.node_id || node?.id;
+      
+      if (!finalNodeId) {
+        throw new Error("Node ID is required to complete node");
+      }
+      
+      // Construct endpoint with node_id in path (matches API Gateway route)
+      const endpoint = `node/${finalNodeId}/complete`;
+      
+      const body = {
+        node: node,
+        node_id: finalNodeId,
+        captured_at_iso: node?.captured_at_iso || new Date().toISOString(),
+      };
+      
+      const result = await callApi(endpoint, "POST", body);
+      return { success: true, ...result };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
 
   // Hide dock initially (macOS) - we'll show it when dashboard opens
   if (process.platform === "darwin") {
