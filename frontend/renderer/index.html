@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BrainDump</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <!-- Listening State -->
+    <div class="brain-container" id="brain-container">
+      <div class="pulse-ring" id="pulse-ring"></div>
+      <img src="brain.png" alt="" class="brain-icon" id="brain-icon" />
+    </div>
+
+    <!-- Processing State (shown while waiting for Bedrock) -->
+    <div class="processing-container" id="processing-container">
+      <div class="processing-dots">
+        <div class="dot"></div>
+        <div class="dot"></div>
+        <div class="dot"></div>
+      </div>
+      <span class="processing-text">Thinking...</span>
+    </div>
+
+    <!-- Action Card Stack -->
+    <div class="cards-stack" id="cards-stack">
+      <!-- Scrollable wrapper for cards -->
+      <div class="cards-wrapper" id="cards-wrapper">
+        <!-- Cards will be injected here by JS -->
+      </div>
+
+      <!-- Progress bar indicator -->
+      <div class="progress-bar" id="progress-bar">
+        <!-- Dots will be injected by JS -->
+      </div>
+
+      <!-- Global Loading Bar for the stack -->
+      <div class="loading-bar"></div>
+
+      <!-- Expired Message (shown when timer runs out without interaction) -->
+      <div class="expired-message" id="expired-message">
+        <span class="expired-message-text"
+          >Tasks need approval.<br />Please go to the dashboard to complete
+          them.</span
+        >
+        <button class="expired-message-btn" id="open-dashboard-btn">
+          Open Dashboard
+        </button>
+        <div class="expired-countdown-bar"></div>
+      </div>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>

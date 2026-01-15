@@ -1,0 +1,30 @@
+{
+  "name": "secondbrain",
+  "version": "1.0.0",
+  "description": "System-wide voice capture overlay for macOS",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --enable-logging",
+    "token": "PRINT_TOKEN=1 electron .",
+    "logout": "electron . --clear-auth",
+    "force-login": "electron . --force-login"
+  },
+  "keywords": [
+    "electron",
+    "overlay",
+    "voice",
+    "notes",
+    "macos"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^28.0.0"
+  },
+  "dependencies": {
+    "@aws-sdk/client-cognito-identity": "^3.620.0",
+    "@aws-sdk/client-transcribe-streaming": "^3.620.0",
+    "@aws-sdk/credential-providers": "^3.620.0"
+  }
+}
