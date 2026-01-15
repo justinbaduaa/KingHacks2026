@@ -295,6 +295,56 @@ Resources:
             Path: /integrations/google/gmail/labels
             Method: GET
 
+  GmailActionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handlers.gmail_action.handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref IntegrationsTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BackendApi
+            Path: /integrations/google/gmail/action
+            Method: POST
+
+  CalendarActionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handlers.calendar_action.handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref IntegrationsTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BackendApi
+            Path: /integrations/google/calendar/action
+            Method: POST
+
+  ExecuteActionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handlers.execute_action.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref DynamoDBTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref IntegrationsTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BackendApi
+            Path: /actions/execute
+            Method: POST
+
   WhoAmIFunction:
     Type: AWS::Serverless::Function
     Properties:
