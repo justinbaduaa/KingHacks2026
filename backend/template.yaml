@@ -207,6 +207,9 @@ Resources:
     Properties:
       CodeUri: src/
       Handler: handlers.get_active_nodes.handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref DynamoDBTable
       Events:
         Api:
           Type: Api
