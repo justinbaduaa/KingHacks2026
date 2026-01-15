@@ -11,6 +11,9 @@ contextBridge.exposeInMainWorld('braindump', {
   dashboardMaximize: () => ipcRenderer.invoke('dashboard-maximize'),
   dashboardClose: () => ipcRenderer.invoke('dashboard-close'),
   
+  // Landing page navigation
+  navigateToDashboard: () => ipcRenderer.invoke('navigate-to-dashboard'),
+  
   // Backend integration - Transcription
   transcribeStart: () => ipcRenderer.invoke('transcribe-start'),
   transcribeStart: () => ipcRenderer.invoke('transcribe-start'),
