@@ -38,15 +38,23 @@ def handler(event, context):
     except IntegrationExecutionError as exc:
         return error_response(exc.status_code, str(exc))
 
-    return api_response(
-        200,
-        {
-            "ok": True,
-            "node": updated_node,
-            "calendar_event": {
-                "id": (event_response or {}).get("id"),
-                "html_link": (event_response or {}).get("htmlLink"),
-                "status": (event_response or {}).get("status"),
-            },
-        },
-    )
+    response_body = {
+        "ok": True,
+        "node": updated_node,
+    }
+
+    if node.get("node_type") == "calendar_placeholder":
+        response_body["calendar_event"] = {
+            "id": (event_response or {}).get("id"),
+            "html_link": (event_response or {}).get("htmlLink"),
+            "status": (event_response or {}).get("status"),
+        }
+    elif node.get("node_type") == "email":
+        response_body["email_message"] = {
+            "message_id": (event_response or {}).get("message_id"),
+            "thread_id": (event_response or {}).get("thread_id"),
+            "draft_id": (event_response or {}).get("draft_id"),
+            "status": (event_response or {}).get("status"),
+        }
+
+    return api_response(200, response_body)

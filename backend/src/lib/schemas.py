@@ -114,6 +114,10 @@ DEFS = {
     "category_hint": {
         "type": "string",
         "enum": ["personal", "school", "work", "health", "finance", "idea", "other"]
+    },
+    "email_send_mode": {
+        "type": "string",
+        "enum": ["send", "draft"]
     }
 }
 
@@ -263,6 +267,60 @@ CALENDAR_PLACEHOLDER_PAYLOAD_SCHEMA = {
     "additionalProperties": False
 }
 
+# Email payload schema
+EMAIL_PAYLOAD_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "to_name": {
+            "type": ["string", "null"],
+            "maxLength": 120,
+            "description": "Recipient name to resolve via contacts"
+        },
+        "to_email": {
+            "type": ["string", "null"],
+            "maxLength": 320,
+            "description": "Recipient email if explicitly stated"
+        },
+        "subject": {
+            "type": "string",
+            "maxLength": 200
+        },
+        "body": {
+            "type": "string",
+            "maxLength": 8000
+        },
+        "cc": {
+            "type": "array",
+            "items": {"type": "string", "maxLength": 320},
+            "maxItems": 25
+        },
+        "bcc": {
+            "type": "array",
+            "items": {"type": "string", "maxLength": 320},
+            "maxItems": 25
+        },
+        "send_mode": {"$ref": "#/$defs/email_send_mode"},
+        "provider_message_id": {
+            "type": ["string", "null"],
+            "maxLength": 200
+        },
+        "provider_thread_id": {
+            "type": ["string", "null"],
+            "maxLength": 200
+        },
+        "provider_draft_id": {
+            "type": ["string", "null"],
+            "maxLength": 200
+        },
+        "provider_status": {
+            "type": ["string", "null"],
+            "maxLength": 50
+        }
+    },
+    "required": ["subject", "body"],
+    "additionalProperties": False
+}
+
 # Main BrainDump Node Envelope schema
 BRAINDUMP_NODE_SCHEMA = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -278,7 +336,7 @@ BRAINDUMP_NODE_SCHEMA = {
         },
         "node_type": {
             "type": "string",
-            "enum": ["reminder", "todo", "note", "calendar_placeholder"]
+            "enum": ["reminder", "todo", "note", "calendar_placeholder", "email"]
         },
         "title": {
             "type": "string",
@@ -328,6 +386,7 @@ BRAINDUMP_NODE_SCHEMA = {
         "todo": TODO_PAYLOAD_SCHEMA,
         "note": NOTE_PAYLOAD_SCHEMA,
         "calendar_placeholder": CALENDAR_PLACEHOLDER_PAYLOAD_SCHEMA,
+        "email": EMAIL_PAYLOAD_SCHEMA,
         "global_warnings": {
             "type": "array",
             "items": {"type": "string", "maxLength": 300},

@@ -6,7 +6,9 @@ import logging
 from typing import Any
 
 from lib.response import api_response, error_response
+from lib.auth import get_user_id
 from lib.bedrock_converse import call_converse
+from lib.contacts import format_contacts_for_payload, get_contact_map
 from lib.time_normalize import (
     parse_offset_from_user_time_iso,
     compute_local_day,
@@ -46,7 +48,7 @@ def parse_request_body(event: dict) -> tuple[dict | None, str | None]:
     return body, None
 
 
-def build_user_payload(body: dict) -> dict:
+def build_user_payload(body: dict, contacts: list[dict] | None = None) -> dict:
     """Build the payload to send to Bedrock."""
     user_time_iso = body["user_time_iso"]
     captured_at_iso = body.get("captured_at_iso") or user_time_iso
@@ -55,13 +57,16 @@ def build_user_payload(body: dict) -> dict:
     if not user_location:
         user_location = {"kind": "unknown"}
     
-    return {
+    payload = {
         "transcript": body["transcript"],
         "transcript_meta": body.get("transcript_meta", {}),
         "captured_at_iso": captured_at_iso,
         "user_time_iso": user_time_iso,
         "user_location": user_location
     }
+    if contacts:
+        payload["contacts"] = contacts
+    return payload
 
 
 def finalize_node(
@@ -108,7 +113,7 @@ def handler(event, context):
     if error:
         return error_response(400, error)
     
-    user_id = body.get("user_id", "demo")
+    user_id = get_user_id(event) or body.get("user_id", "demo")
     transcript = body["transcript"]
     user_time_iso = body["user_time_iso"]
     captured_at_iso = body.get("captured_at_iso") or user_time_iso
@@ -118,7 +123,9 @@ def handler(event, context):
     created_at_iso = utc_now_iso()
     
     # Build payload for Bedrock
-    user_payload = build_user_payload(body)
+    contacts_map = get_contact_map(user_id)
+    contacts_payload = format_contacts_for_payload(contacts_map)
+    user_payload = build_user_payload(body, contacts=contacts_payload)
     
     # Get model ID from environment
     model_id = os.environ.get("BEDROCK_MODEL_ID", DEFAULT_MODEL_ID)
