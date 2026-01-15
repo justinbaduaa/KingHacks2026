@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SecondBrain</title>
+  <link rel="stylesheet" href="landing.css">
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- Background Layer -->
+  <div class="background-layer">
+    <video
+      class="background-video"
+      id="background-video"
+      autoplay
+      muted
+      loop
+      playsinline
+      preload="auto"
+    >
+      <source src="Background-Vid-FINAL.mp4" type="video/mp4" />
+    </video>
+  </div>
+  
+  <!-- Vignette Overlay -->
+  <div class="vignette-overlay"></div>
+  
+  <!-- Ripple Layer (shown during transition) -->
+  <div class="ripple-layer" id="ripple-layer">
+    <div class="ripple" id="ripple"></div>
+  </div>
+  
+  <!-- Center Content -->
+  <main class="center-content">
+    <button 
+      class="brain-button" 
+      id="brain-button"
+      aria-label="Enter Second Brain"
+      tabindex="0"
+    >
+      <div class="brain-glow"></div>
+      <div class="brain-sunlight"></div>
+      <img src="brain.png" alt="" class="brain-icon" />
+    </button>
+    
+    <div class="microcopy"></div>
+  </main>
+
+  <script src="landing.js"></script>
+</body>
+</html>

@@ -1,0 +1,321 @@
+/* Landing Page - Calm, Elegant, Magical */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  font-family: 'Cormorant Garamond', 'Times New Roman', serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ===== Background Layer ===== */
+.background-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  background: #0b0b10;
+}
+
+.background-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+  pointer-events: none;
+}
+
+/* ===== Vignette Overlay ===== */
+.vignette-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 40%,
+    rgba(0, 0, 0, 0.08) 70%,
+    rgba(0, 0, 0, 0.15) 100%
+  );
+}
+
+/* ===== Ripple Layer ===== */
+.ripple-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  visibility: hidden;
+}
+
+.ripple-layer.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+.ripple {
+  position: absolute;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(255, 248, 240, 0.95) 0%,
+    rgba(255, 235, 220, 0.85) 30%,
+    rgba(255, 225, 200, 0.6) 60%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  transform: translate(-50%, -50%);
+  filter: blur(30px);
+}
+
+.ripple.expanding {
+  animation: rippleExpand 900ms cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
+@keyframes rippleExpand {
+  0% {
+    width: 0;
+    height: 0;
+    opacity: 0.9;
+  }
+  60% {
+    opacity: 0.95;
+  }
+  100% {
+    width: 300vmax;
+    height: 300vmax;
+    opacity: 1;
+  }
+}
+
+/* ===== Center Content ===== */
+.center-content {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+}
+
+.center-content.fading {
+  animation: contentFadeOut 600ms ease-out forwards;
+  animation-delay: 200ms;
+}
+
+@keyframes contentFadeOut {
+  to {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+/* ===== Brain Button ===== */
+.brain-button {
+  position: relative;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  outline: none;
+  -webkit-app-region: no-drag;
+}
+
+.brain-icon {
+  width: 240px;
+  height: 240px;
+  object-fit: contain;
+  position: relative;
+  z-index: 2;
+  transition: transform 400ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation: gentleFloat 4s ease-in-out infinite;
+  filter: drop-shadow(0 24px 50px rgba(92, 72, 60, 0.22)) saturate(1.08) contrast(1.03);
+}
+
+/* Float Animation */
+@keyframes gentleFloat {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-12px);
+  }
+}
+
+/* Glow Effect */
+.brain-glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 300px;
+  height: 300px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(255, 236, 220, 0.35) 0%,
+    rgba(255, 220, 200, 0.18) 45%,
+    rgba(255, 220, 200, 0) 70%
+  );
+  z-index: 1;
+  transition: all 500ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  filter: blur(20px);
+  pointer-events: none;
+}
+
+.brain-sunlight {
+  position: absolute;
+  top: 10%;
+  right: -8%;
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(255, 244, 214, 0.85) 0%,
+    rgba(255, 220, 180, 0.45) 45%,
+    rgba(255, 200, 170, 0) 70%
+  );
+  mix-blend-mode: screen;
+  opacity: 0.7;
+  filter: blur(18px);
+  z-index: 3;
+  pointer-events: none;
+  transition: transform 400ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 400ms ease;
+}
+
+/* Hover States */
+.brain-button:hover .brain-icon {
+  transform: translateY(-8px) scale(1.12);
+  animation-play-state: paused;
+}
+
+.brain-button:hover .brain-glow {
+  width: 360px;
+  height: 360px;
+  background: radial-gradient(
+    circle,
+    rgba(255, 235, 220, 0.5) 0%,
+    rgba(255, 220, 200, 0.2) 50%,
+    rgba(255, 220, 200, 0) 100%
+  );
+}
+
+.brain-button:hover .brain-sunlight {
+  transform: scale(1.1);
+  opacity: 0.9;
+}
+
+/* Focus States */
+.brain-button:focus-visible {
+  outline: none;
+}
+
+.brain-button:focus-visible .brain-icon {
+  box-shadow: none;
+}
+
+/* Active/Press State */
+.brain-button:active .brain-icon,
+.brain-button.pressed .brain-icon {
+  transform: scale(0.97);
+  animation-play-state: paused;
+  transition: transform 100ms ease-out;
+}
+
+/* Disabled during transition */
+.brain-button.disabled {
+  pointer-events: none;
+}
+
+/* ===== Microcopy ===== */
+.microcopy {
+  text-align: center;
+  opacity: 0;
+  animation: microcopyFadeIn 800ms ease-out forwards;
+  animation-delay: 300ms;
+}
+
+@keyframes microcopyFadeIn {
+  to {
+    opacity: 1;
+  }
+}
+
+.primary-text {
+  font-size: 26px;
+  font-weight: 700;
+  color: rgba(60, 50, 45, 0.85);
+  letter-spacing: 0.04em;
+  margin-bottom: 0;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.3);
+}
+
+.secondary-text {
+  font-size: 13px;
+  font-weight: 400;
+  color: rgba(80, 70, 65, 0.65);
+  letter-spacing: 0.01em;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.2);
+}
+
+/* ===== Reduced Motion ===== */
+@media (prefers-reduced-motion: reduce) {
+  .brain-icon {
+    animation: none;
+  }
+  
+  .ripple.expanding {
+    animation: none;
+  }
+  
+  .ripple-layer.active {
+    background: rgba(255, 250, 245, 0.98);
+    transition: opacity 400ms ease-out;
+  }
+  
+  .center-content.fading {
+    animation: simpleFadeOut 400ms ease-out forwards;
+  }
+  
+  @keyframes simpleFadeOut {
+    to {
+      opacity: 0;
+    }
+  }
+  
+  .brain-button:hover .brain-icon {
+    transform: scale(1.03);
+  }
+}
+
+/* ===== Transition Complete State ===== */
+body.transition-complete {
+  background: #fdfbf9;
+}
+
+body.transition-complete .background-layer,
+body.transition-complete .vignette-overlay,
+body.transition-complete .center-content {
+  opacity: 0;
+  visibility: hidden;
+}
+
+body.transition-complete .ripple-layer {
+  background: #fdfbf9;
+}
