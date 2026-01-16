@@ -134,7 +134,7 @@
           </div>
         </div>
 
-        <!-- 4-Column Kanban Board - No Scroll, All Expanded -->
+        <!-- Kanban Board - Horizontal Scroll -->
         <div class="kanban-board" id="board-view">
           
           <!-- Column 1: Outgoing Tasks -->
@@ -176,7 +176,33 @@
             </div>
           </section>
 
-          <!-- Column 4: Calendar -->
+          <!-- Column 4: Email -->
+          <section class="kanban-column">
+            <div class="column-header">
+              <div class="column-title">
+                <h2>EMAIL</h2>
+                <span class="count-badge email-badge" id="email-count">0</span>
+              </div>
+            </div>
+            <div class="column-content" id="email-list">
+              <!-- Cards populated by JS -->
+            </div>
+          </section>
+
+          <!-- Column 5: Slack -->
+          <section class="kanban-column">
+            <div class="column-header">
+              <div class="column-title">
+                <h2>SLACK</h2>
+                <span class="count-badge slack-badge" id="slack-count">0</span>
+              </div>
+            </div>
+            <div class="column-content" id="slack-list">
+              <!-- Cards populated by JS -->
+            </div>
+          </section>
+
+          <!-- Column 6: Calendar -->
           <section class="kanban-column">
             <div class="column-header">
               <div class="column-title">
@@ -217,6 +243,14 @@
               <span>Notes</span>
             </div>
             <div class="legend-item">
+              <span class="legend-dot email"></span>
+              <span>Emails</span>
+            </div>
+            <div class="legend-item">
+              <span class="legend-dot slack"></span>
+              <span>Slack</span>
+            </div>
+            <div class="legend-item">
               <span class="legend-dot calendar"></span>
               <span>Events</span>
             </div>
@@ -249,6 +283,7 @@
               <button class="filter-pill" data-filter="note">Notes</button>
               <button class="filter-pill" data-filter="calendar">Calendar</button>
               <button class="filter-pill" data-filter="email">Emails</button>
+              <button class="filter-pill" data-filter="slack">Slack</button>
             </div>
           </div>
         </header>

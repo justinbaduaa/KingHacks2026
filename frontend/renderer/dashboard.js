@@ -4,6 +4,8 @@
 const FALLBACK_TASKS = [];
 const FALLBACK_REMINDERS = [];
 const FALLBACK_NOTES = [];
+const FALLBACK_EMAILS = [];
+const FALLBACK_SLACK = [];
 const FALLBACK_CALENDAR = [];
 const FALLBACK_ACTIVITY = [];
 
@@ -19,12 +21,16 @@ function escapeHtml(text) {
 const pendingList = document.getElementById('pending-list');
 const remindersList = document.getElementById('reminders-list');
 const notesList = document.getElementById('notes-list');
+const emailList = document.getElementById('email-list');
+const slackList = document.getElementById('slack-list');
 const calendarList = document.getElementById('calendar-list');
 const activityTimeline = document.getElementById('activity-timeline');
 
 const pendingCount = document.getElementById('pending-count');
 const remindersCount = document.getElementById('reminders-count');
 const notesCount = document.getElementById('notes-count');
+const emailCount = document.getElementById('email-count');
+const slackCount = document.getElementById('slack-count');
 const calendarCount = document.getElementById('calendar-count');
 
 const loginBtn = document.getElementById('login-btn');
@@ -147,6 +153,18 @@ function renderCalendarCard(item) {
 }
 
 function renderEmailCard(item) {
+  const ccRow = item.ccLabel ? `
+      <div class="card-detail-row">
+        <span class="detail-label">CC</span>
+        <span class="detail-value">${item.ccLabel}</span>
+      </div>
+    ` : '';
+  const bccRow = item.bccLabel ? `
+      <div class="card-detail-row">
+        <span class="detail-label">BCC</span>
+        <span class="detail-value">${item.bccLabel}</span>
+      </div>
+    ` : '';
   return `
     <div class="kanban-card email-card" data-id="${item.id}" data-node-id="${item.nodeId || ''}" data-type="email">
       <div class="card-actions">
@@ -155,16 +173,44 @@ function renderEmailCard(item) {
         </button>
       </div>
       <div class="card-header">
-        <span class="card-pill email">Email</span>
+        <span class="card-pill email"><i data-feather="mail"></i>Email</span>
       </div>
       <h3 class="card-title">${item.title}</h3>
+      ${item.description ? `<p class="card-description">${item.description}</p>` : ''}
       <div class="card-detail-row">
         <span class="detail-label">To</span>
         <span class="detail-value">${item.recipientLabel}</span>
       </div>
+      ${ccRow}
+      ${bccRow}
       <div class="card-detail-row">
-        <span class="detail-label">Mode</span>
-        <span class="detail-value">${item.sendModeLabel}</span>
+        <span class="detail-label">Status</span>
+        <span class="detail-value">${item.statusLabel}</span>
+      </div>
+    </div>
+  `;
+}
+
+function renderSlackCard(item) {
+  return `
+    <div class="kanban-card slack-card" data-id="${item.id}" data-node-id="${item.nodeId || ''}" data-type="slack">
+      <div class="card-actions">
+        <button class="card-action-btn card-delete" type="button" data-action="delete" title="Delete">
+          <i data-feather="x"></i>
+        </button>
+      </div>
+      <div class="card-header">
+        <span class="card-pill slack"><i data-feather="message-square"></i>Slack</span>
+      </div>
+      <h3 class="card-title">${item.title}</h3>
+      ${item.description ? `<p class="card-description">${item.description}</p>` : ''}
+      <div class="card-detail-row">
+        <span class="detail-label">${item.targetTypeLabel}</span>
+        <span class="detail-value">${item.targetLabel}</span>
+      </div>
+      <div class="card-detail-row">
+        <span class="detail-label">Status</span>
+        <span class="detail-value">${item.statusLabel}</span>
       </div>
     </div>
   `;
@@ -175,6 +221,7 @@ function renderCard(item) {
   if (item.type === 'note') return renderNoteCard(item);
   if (item.type === 'calendar') return renderCalendarCard(item);
   if (item.type === 'email') return renderEmailCard(item);
+  if (item.type === 'slack') return renderSlackCard(item);
   return renderTaskCard(item);
 }
 
@@ -205,13 +252,19 @@ function renderBoardFromCards(cards) {
   const pendingCards = [];
   const reminderCards = [];
   const noteCards = [];
+  const emailCards = [];
+  const slackCards = [];
   const calendarCards = [];
 
   cards.forEach((card) => {
     if (card.type === 'reminder') {
       reminderCards.push(card);
-    } else if (card.type === 'note' || card.type === 'email') {
+    } else if (card.type === 'note') {
       noteCards.push(card);
+    } else if (card.type === 'email') {
+      emailCards.push(card);
+    } else if (card.type === 'slack') {
+      slackCards.push(card);
     } else if (card.type === 'calendar') {
       calendarCards.push(card);
     } else {
@@ -222,6 +275,8 @@ function renderBoardFromCards(cards) {
   renderCards(pendingList, pendingCards, pendingCount, 'No tasks yet');
   renderCards(remindersList, reminderCards, remindersCount, 'No reminders yet');
   renderCards(notesList, noteCards, notesCount, 'No notes yet');
+  renderCards(emailList, emailCards, emailCount, 'No emails yet');
+  renderCards(slackList, slackCards, slackCount, 'No Slack messages yet');
   renderCards(calendarList, calendarCards, calendarCount, 'No calendar items yet');
 }
 
@@ -355,6 +410,9 @@ function normalizeNodeType(nodeType) {
   if (!nodeType) return 'task';
   if (nodeType === 'todo') return 'task';
   if (nodeType === 'calendar_placeholder') return 'calendar';
+  if (nodeType === 'slack_message') return 'slack';
+  if (nodeType === 'ms_email') return 'email';
+  if (nodeType === 'ms_calendar') return 'calendar';
   return nodeType;
 }
 
@@ -419,17 +477,53 @@ function deriveCardFromNode(node) {
   }
 
   if (nodeType === 'email') {
-    const emailPayload = node.email || {};
+    const emailPayload = node.email || node.ms_email || {};
     const recipient = emailPayload.to_email || emailPayload.to_name || 'Recipient TBD';
-    const sendMode = (emailPayload.send_mode || 'send').toUpperCase();
+    const ccLabel = Array.isArray(emailPayload.cc) ? emailPayload.cc.filter(Boolean).join(', ') : '';
+    const bccLabel = Array.isArray(emailPayload.bcc) ? emailPayload.bcc.filter(Boolean).join(', ') : '';
+    const status = emailPayload.provider_status || emailPayload.send_mode || 'pending';
 
     return {
       id: nodeId,
       nodeId,
       type: nodeType,
       title: emailPayload.subject || baseTitle,
+      description: emailPayload.body || node.body || '',
       recipientLabel: recipient,
-      sendModeLabel: sendMode,
+      ccLabel,
+      bccLabel,
+      statusLabel: String(status).toUpperCase(),
+    };
+  }
+
+  if (nodeType === 'slack') {
+    const slackPayload = node.slack_message || {};
+    const channelName = slackPayload.channel_name;
+    const recipientName = slackPayload.recipient_name;
+    const targetLabel = channelName
+      ? `#${channelName}`
+      : recipientName
+        ? `@${recipientName}`
+        : slackPayload.channel_id || slackPayload.recipient_id || 'Target TBD';
+    const targetTypeLabel = channelName || slackPayload.channel_id
+      ? 'Channel'
+      : recipientName || slackPayload.recipient_id
+        ? 'Recipient'
+        : 'Target';
+    const status = slackPayload.provider_status || slackPayload.send_mode || 'pending';
+    const message = slackPayload.message || node.body || baseTitle;
+    const title = targetLabel === 'Target TBD' ? 'Slack message' : `Slack to ${targetLabel}`;
+    const description = message !== title ? message : '';
+
+    return {
+      id: nodeId,
+      nodeId,
+      type: nodeType,
+      title,
+      description,
+      targetLabel,
+      targetTypeLabel,
+      statusLabel: String(status).toUpperCase(),
     };
   }
 
@@ -461,11 +555,20 @@ function buildActivityFromNodes(nodes) {
     if (!groups.has(dayKey)) {
       groups.set(dayKey, []);
     }
+    const detailMap = {
+      task: 'Task captured',
+      reminder: 'Reminder captured',
+      note: 'Note captured',
+      calendar: 'Event captured',
+      email: 'Email captured',
+      slack: 'Slack message captured',
+    };
+
     groups.get(dayKey).push({
       time: timeLabel,
       type: nodeType,
       text: title,
-      detail: nodeType === 'note' ? 'Note captured' : 'Captured',
+      detail: detailMap[nodeType] || 'Captured',
     });
   });
 
@@ -645,7 +748,7 @@ function renderListView() {
     `;
   } else {
     // Sort by type priority: tasks first, then reminders, calendar, notes
-    const typePriority = { task: 0, reminder: 1, calendar: 2, note: 3 };
+    const typePriority = { task: 0, reminder: 1, calendar: 2, email: 3, slack: 4, note: 5 };
     const sorted = [...allCards].sort((a, b) => {
       return (typePriority[a.type] ?? 4) - (typePriority[b.type] ?? 4);
     });
@@ -1056,7 +1159,7 @@ function showNodePanel(card, panelContent, nodePanel) {
   const description = card.description || card.body || '';
 
   // Remove any previous type classes and add current type
-  nodePanel.classList.remove('task', 'reminder', 'note', 'calendar');
+  nodePanel.classList.remove('task', 'reminder', 'note', 'calendar', 'email', 'slack');
   nodePanel.classList.add(card.type);
 
   // Generate content based on card type
@@ -1103,6 +1206,56 @@ function showNodePanel(card, panelContent, nodePanel) {
       <div class="panel-detail-row">
         <span class="detail-label">Time</span>
         <span class="detail-value">${escapeHtml(card.timeLabel || '')}</span>
+      </div>
+    `;
+  } else if (card.type === 'email') {
+    const ccRow = card.ccLabel ? `
+      <div class="panel-detail-row">
+        <span class="detail-label">CC</span>
+        <span class="detail-value">${escapeHtml(card.ccLabel)}</span>
+      </div>
+    ` : '';
+    const bccRow = card.bccLabel ? `
+      <div class="panel-detail-row">
+        <span class="detail-label">BCC</span>
+        <span class="detail-value">${escapeHtml(card.bccLabel)}</span>
+      </div>
+    ` : '';
+    actionButtons = `
+      <div class="panel-actions">
+        <button class="panel-action-btn panel-close" type="button" id="panel-close-inner">
+          <i data-feather="x"></i>
+        </button>
+      </div>
+    `;
+    metaContent = `
+      <div class="panel-detail-row">
+        <span class="detail-label">To</span>
+        <span class="detail-value">${escapeHtml(card.recipientLabel || 'Recipient TBD')}</span>
+      </div>
+      ${ccRow}
+      ${bccRow}
+      <div class="panel-detail-row">
+        <span class="detail-label">Status</span>
+        <span class="detail-value">${escapeHtml(card.statusLabel || 'PENDING')}</span>
+      </div>
+    `;
+  } else if (card.type === 'slack') {
+    actionButtons = `
+      <div class="panel-actions">
+        <button class="panel-action-btn panel-close" type="button" id="panel-close-inner">
+          <i data-feather="x"></i>
+        </button>
+      </div>
+    `;
+    metaContent = `
+      <div class="panel-detail-row">
+        <span class="detail-label">${escapeHtml(card.targetTypeLabel || 'Target')}</span>
+        <span class="detail-value">${escapeHtml(card.targetLabel || 'Target TBD')}</span>
+      </div>
+      <div class="panel-detail-row">
+        <span class="detail-label">Status</span>
+        <span class="detail-value">${escapeHtml(card.statusLabel || 'PENDING')}</span>
       </div>
     `;
   } else if (card.type === 'task') {
@@ -1225,6 +1378,8 @@ function updateCanvas() {
     task: [],
     reminder: [],
     note: [],
+    email: [],
+    slack: [],
     calendar: []
   };
 
@@ -1236,13 +1391,15 @@ function updateCanvas() {
     }
   });
 
-  // Define quadrant angles for each type (in radians)
-  // Positioned like a compass: tasks=front, reminders=right, notes=back, calendar=left
+  // Define arc angles for each type (in radians)
+  // Spread evenly around the brain: 6 groups at 60-degree offsets
   const typeConfig = {
-    task: { baseAngle: 0, color: 0x22C55E },                    // Front (green)
-    reminder: { baseAngle: Math.PI / 2, color: 0xF97316 },      // Right (orange)
-    note: { baseAngle: Math.PI, color: 0x8B5CF6 },              // Back (purple)
-    calendar: { baseAngle: (3 * Math.PI) / 2, color: 0x14B8A6 } // Left (teal)
+    task: { baseAngle: 0, color: 0x22C55E },                         // Front (green)
+    reminder: { baseAngle: Math.PI / 3, color: 0xF97316 },           // Orange
+    email: { baseAngle: (2 * Math.PI) / 3, color: 0xEF4444 },        // Red
+    note: { baseAngle: Math.PI, color: 0x8B5CF6 },                   // Purple
+    slack: { baseAngle: (4 * Math.PI) / 3, color: 0x36C5F0 },        // Blue
+    calendar: { baseAngle: (5 * Math.PI) / 3, color: 0x14B8A6 }      // Teal
   };
 
   const radius = 8; // Orbit radius around brain
@@ -1493,6 +1650,8 @@ async function loadDashboardData(options = {}) {
       renderCards(pendingList, FALLBACK_TASKS, pendingCount, 'No tasks yet');
       renderCards(remindersList, FALLBACK_REMINDERS, remindersCount, 'No reminders yet');
       renderCards(notesList, FALLBACK_NOTES, notesCount, 'No notes yet');
+      renderCards(emailList, FALLBACK_EMAILS, emailCount, 'No emails yet');
+      renderCards(slackList, FALLBACK_SLACK, slackCount, 'No Slack messages yet');
       renderCards(calendarList, FALLBACK_CALENDAR, calendarCount, 'No calendar items yet');
       renderActivity(activityTimeline, FALLBACK_ACTIVITY);
       updateStats([]);
@@ -1516,6 +1675,8 @@ async function loadDashboardData(options = {}) {
       renderCards(pendingList, FALLBACK_TASKS, pendingCount, 'No tasks yet');
       renderCards(remindersList, FALLBACK_REMINDERS, remindersCount, 'No reminders yet');
       renderCards(notesList, FALLBACK_NOTES, notesCount, 'No notes yet');
+      renderCards(emailList, FALLBACK_EMAILS, emailCount, 'No emails yet');
+      renderCards(slackList, FALLBACK_SLACK, slackCount, 'No Slack messages yet');
       renderCards(calendarList, FALLBACK_CALENDAR, calendarCount, 'No calendar items yet');
       renderActivity(activityTimeline, FALLBACK_ACTIVITY);
       updateStats([]);
