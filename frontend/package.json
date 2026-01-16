@@ -25,6 +25,8 @@
   "dependencies": {
     "@aws-sdk/client-cognito-identity": "^3.620.0",
     "@aws-sdk/client-transcribe-streaming": "^3.620.0",
-    "@aws-sdk/credential-providers": "^3.620.0"
+    "@aws-sdk/credential-providers": "^3.620.0",
+    "3d-force-graph": "^1.79.0",
+    "three": "^0.182.0"
   }
 }

@@ -8,6 +8,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <!-- Feather Icons -->
   <script src="https://unpkg.com/feather-icons"></script>
+  <!-- Three.js r128 (last version with examples/js support) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 </head>
 <body>
   
@@ -95,6 +99,10 @@
             <i data-feather="trello"></i>
             <span>Board</span>
           </a>
+          <a href="#" class="tab-item" data-tab="canvas">
+            <i data-feather="hexagon"></i>
+            <span>Canvas</span>
+          </a>
         </div>
         
         <div class="nav-actions">
@@ -181,6 +189,40 @@
             </div>
           </section>
 
+        </div>
+
+        <div class="canvas-view" id="canvas-view">
+          <div id="3d-graph"></div>
+          
+          <!-- Legend -->
+          <div class="canvas-legend">
+            <div class="legend-item">
+              <span class="legend-dot task"></span>
+              <span>Prop Tasks</span>
+            </div>
+            <div class="legend-item">
+              <span class="legend-dot reminder"></span>
+              <span>Reminders</span>
+            </div>
+            <div class="legend-item">
+              <span class="legend-dot note"></span>
+              <span>Notes</span>
+            </div>
+            <div class="legend-item">
+              <span class="legend-dot calendar"></span>
+              <span>Events</span>
+            </div>
+          </div>
+
+          <div class="canvas-controls">
+            <button class="canvas-btn" id="canvas-recenter-btn" title="Recenter Camera">
+              <i data-feather="target"></i>
+            </button>
+            <div class="canvas-instruction">
+              <i data-feather="mouse-pointer"></i>
+              <span>Drag to rotate · Scroll to zoom · Click nodes to focus</span>
+            </div>
+          </div>
         </div>
       </div>
 

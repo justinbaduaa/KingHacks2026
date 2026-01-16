@@ -31,6 +31,7 @@ const viewSettings = document.getElementById('view-settings');
 // Tab view containers
 const listViewContainer = document.getElementById('list-view');
 const boardViewContainer = document.getElementById('board-view');
+const canvasViewContainer = document.getElementById('canvas-view');
 const allItemsList = document.getElementById('all-items-list');
 
 // Current view state
@@ -477,10 +478,22 @@ function switchTab(tabName) {
   if (tabName === 'list') {
     if (listViewContainer) listViewContainer.classList.add('active');
     if (boardViewContainer) boardViewContainer.classList.remove('active');
+    if (canvasViewContainer) canvasViewContainer.classList.remove('active');
     renderListView();
+  } else if (tabName === 'canvas') {
+    if (listViewContainer) listViewContainer.classList.remove('active');
+    if (boardViewContainer) boardViewContainer.classList.remove('active');
+    if (canvasViewContainer) canvasViewContainer.classList.add('active');
+    
+    // Initialize or update 3D graph
+    setTimeout(() => {
+       initCanvas();
+       updateCanvas();
+    }, 100);
   } else {
     if (listViewContainer) listViewContainer.classList.remove('active');
     if (boardViewContainer) boardViewContainer.classList.add('active');
+    if (canvasViewContainer) canvasViewContainer.classList.remove('active');
   }
   
   // Re-init feather icons
@@ -538,6 +551,232 @@ function renderListView() {
   if (typeof feather !== 'undefined') {
     feather.replace();
   }
+}
+
+// ===== 3D Canvas View =====
+let brainScene = null;
+let brainCamera = null;
+let brainRenderer = null;
+let brainControls = null;
+let brainObject = null;
+let canvasInited = false;
+let animationId = null;
+
+function initCanvas() {
+  if (canvasInited) return;
+  const container = document.getElementById('3d-graph');
+  if (!container) return;
+  
+  if (typeof THREE === 'undefined') {
+    console.warn('THREE not loaded');
+    return;
+  }
+
+  // Calculate dimensions
+  const height = window.innerHeight - 240;
+  const width = container.clientWidth || window.innerWidth - 280;
+
+  // Scene
+  brainScene = new THREE.Scene();
+  brainScene.background = new THREE.Color(0xF8FAFC);
+
+  // Camera
+  brainCamera = new THREE.PerspectiveCamera(45, width / height, 1, 2000);
+  brainCamera.position.z = 15;
+
+  // Lighting
+  const ambientLight = new THREE.AmbientLight(0xFFB4C8, 0.6); // Soft pink ambient
+  brainScene.add(ambientLight);
+
+  const pointLight = new THREE.PointLight(0xffffff, 1.0);
+  pointLight.position.set(50, 50, 50);
+  brainScene.add(pointLight);
+
+  const pointLight2 = new THREE.PointLight(0xFFB4C8, 0.5);
+  pointLight2.position.set(-50, -50, 50);
+  brainScene.add(pointLight2);
+
+  // Renderer
+  brainRenderer = new THREE.WebGLRenderer({ antialias: true });
+  brainRenderer.setSize(width, height);
+  brainRenderer.setPixelRatio(window.devicePixelRatio);
+  container.appendChild(brainRenderer.domElement);
+
+  // Controls
+  brainControls = new THREE.OrbitControls(brainCamera, brainRenderer.domElement);
+  brainControls.enableDamping = true;
+  brainControls.dampingFactor = 0.05;
+  brainControls.minDistance = 5;
+  brainControls.maxDistance = 50;
+  brainControls.rotateSpeed = 1.0;
+  brainControls.autoRotate = true;
+  brainControls.autoRotateSpeed = 0.5;
+
+  // Load texture
+  const textureLoader = new THREE.TextureLoader();
+  const brainTexture = textureLoader.load('obj/brain.jpg');
+
+  // Load OBJ model
+  const loader = new THREE.OBJLoader();
+  loader.load(
+    'obj/freesurff.Obj',
+    (obj) => {
+      brainObject = obj;
+      obj.traverse((child) => {
+        if (child.isMesh) {
+          child.material = new THREE.MeshStandardMaterial({
+            map: brainTexture,
+            roughness: 0.6,
+            metalness: 0.1,
+            color: 0xFFCCDD // Soft pink tint
+          });
+        }
+      });
+      // Center and scale
+      const box = new THREE.Box3().setFromObject(obj);
+      const center = box.getCenter(new THREE.Vector3());
+      obj.position.sub(center);
+      
+      brainScene.add(obj);
+      console.log('Brain model loaded successfully');
+    },
+    (xhr) => {
+      const percent = (xhr.loaded / xhr.total * 100).toFixed(1);
+      console.log(`Brain model ${percent}% loaded`);
+    },
+    (error) => {
+      console.error('Error loading brain model:', error);
+    }
+  );
+
+  // Handle Resize
+  window.addEventListener('resize', onCanvasResize);
+
+  // Handle Recenter
+  const recenterBtn = document.getElementById('canvas-recenter-btn');
+  if (recenterBtn) {
+    recenterBtn.addEventListener('click', () => {
+      if (brainCamera && brainControls) {
+        brainCamera.position.set(0, 0, 15);
+        brainControls.target.set(0, 0, 0);
+        brainControls.update();
+      }
+    });
+  }
+  
+  canvasInited = true;
+  
+  // Apply dark theme if active
+  if (document.body.classList.contains('dark-theme')) {
+    brainScene.background = new THREE.Color(0x0F172A);
+  }
+
+  // Start animation loop
+  animateBrain();
+}
+
+function onCanvasResize() {
+  if (!brainCamera || !brainRenderer) return;
+  const container = document.getElementById('3d-graph');
+  if (!container) return;
+  
+  const width = container.clientWidth || window.innerWidth - 280;
+  const height = window.innerHeight - 240;
+  
+  brainCamera.aspect = width / height;
+  brainCamera.updateProjectionMatrix();
+  brainRenderer.setSize(width, height);
+}
+
+function animateBrain() {
+  if (currentTab !== 'canvas') {
+    animationId = null;
+    return;
+  }
+  
+  animationId = requestAnimationFrame(animateBrain);
+  
+  if (brainControls) {
+    brainControls.update();
+  }
+  
+  if (brainRenderer && brainScene && brainCamera) {
+    brainRenderer.render(brainScene, brainCamera);
+  }
+}
+
+// Track node meshes for updates
+let nodeMeshes = [];
+
+function updateCanvas() {
+  if (!brainScene) return;
+  
+  // Start animation if not running
+  if (!animationId && currentTab === 'canvas') {
+    animateBrain();
+  }
+
+  // Remove existing node meshes
+  nodeMeshes.forEach(mesh => {
+    brainScene.remove(mesh);
+    if (mesh.geometry) mesh.geometry.dispose();
+    if (mesh.material) mesh.material.dispose();
+  });
+  nodeMeshes = [];
+
+  // Add spheres for each card orbiting the brain
+  const radius = 8; // Orbit radius around brain
+  const nodeSize = 0.3;
+  
+  allCards.forEach((card, index) => {
+    // Determine color by type
+    let color = 0x3B82F6; // blue default
+    if (card.type === 'task') color = 0x22C55E;
+    if (card.type === 'reminder') color = 0xF97316;
+    if (card.type === 'note') color = 0x8B5CF6;
+    if (card.type === 'calendar') color = 0x14B8A6;
+
+    // Create sphere geometry
+    const geometry = new THREE.SphereGeometry(nodeSize, 16, 16);
+    const material = new THREE.MeshStandardMaterial({
+      color: color,
+      emissive: color,
+      emissiveIntensity: 0.3,
+      roughness: 0.5,
+      metalness: 0.2
+    });
+    const sphere = new THREE.Mesh(geometry, material);
+
+    // Position in a spiral pattern around the brain
+    const angle = (index / allCards.length) * Math.PI * 2;
+    const heightOffset = (index / allCards.length - 0.5) * 4; // Spread vertically
+    sphere.position.x = Math.cos(angle) * radius;
+    sphere.position.y = heightOffset;
+    sphere.position.z = Math.sin(angle) * radius;
+
+    // Store card data for potential interaction
+    sphere.userData = { card: card };
+
+    brainScene.add(sphere);
+    nodeMeshes.push(sphere);
+
+    // Create line from brain center to node
+    const lineMaterial = new THREE.LineBasicMaterial({ 
+      color: 0xE2E8F0, 
+      opacity: 0.5, 
+      transparent: true 
+    });
+    const points = [
+      new THREE.Vector3(0, 0, 0),
+      sphere.position.clone()
+    ];
+    const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
+    const line = new THREE.Line(lineGeometry, lineMaterial);
+    brainScene.add(line);
+    nodeMeshes.push(line);
+  });
+
+  console.log(`Added ${allCards.length} node spheres to canvas`);
 }
 
 // ===== Sidebar Collapse =====
@@ -772,6 +1011,8 @@ function setupDeleteHandlers() {
     e.stopPropagation();
 
     const card = actionBtn.closest('.kanban-card');
+    // Also handle canvas node deletion via custom event or similar if needed
+    // For now we just focus on existing UI
     if (!card) return;
 
     const nodeId = card.dataset.nodeId;

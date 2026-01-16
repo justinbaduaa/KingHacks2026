@@ -2041,3 +2041,128 @@ body.dark-theme ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.25);
 }
 
+/* =========================================
+   Canvas View
+   ========================================= */
+.canvas-view {
+  display: none;
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  animation: fadeIn 0.3s ease;
+  height: 100%;
+}
+
+.canvas-view.active {
+  display: block;
+}
+
+#3d-graph {
+  width: 100%;
+  height: 100%;
+  outline: none;
+}
+
+.canvas-controls {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none; /* Let clicks pass through container but not children */
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.canvas-controls > * {
+  pointer-events: auto; /* Re-enable pointer events for children */
+}
+
+.canvas-btn {
+  background: white;
+  color: var(--text-Primary);
+  border: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  box-shadow: var(--shadow-soft);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.canvas-btn:hover {
+  background: var(--bg-Hover);
+  transform: scale(1.05);
+}
+
+.canvas-instruction {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(8px);
+  padding: 8px 16px;
+  border-radius: var(--radius-xl);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-Secondary);
+  box-shadow: var(--shadow-soft);
+  white-space: nowrap;
+}
+
+/* Legend */
+.canvas-legend {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(8px);
+  padding: 12px 16px;
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: var(--shadow-soft);
+  z-index: 10;
+}
+
+body.dark-theme .canvas-legend {
+  background: rgba(15, 23, 42, 0.7);
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-Secondary);
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.legend-dot.task { background: var(--accent-Green); }
+.legend-dot.reminder { background: var(--accent-Orange); }
+.legend-dot.note { background: var(--accent-Purple); }
+.legend-dot.calendar { background: var(--accent-Teal); }
+.legend-dot.root { background: #FFB4C8; }
+
+.canvas-instruction svg {
+  width: 14px;
+  height: 14px;
+}
+
+body.dark-theme .canvas-instruction {
+  background: rgba(15, 23, 42, 0.7);
+  color: var(--text-Secondary);
+}
+
