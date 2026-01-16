@@ -45,6 +45,9 @@ const allItemsList = document.getElementById('all-items-list');
 // Current view state
 let currentTab = 'board';
 let allCards = [];
+const PREFETCH_KEY = 'prefetched-active-nodes';
+const PREFETCH_TS_KEY = 'prefetched-active-nodes-ts';
+const PREFETCH_TTL_MS = 60 * 1000;
 
 // ===== Render Functions =====
 
@@ -220,6 +223,35 @@ function renderBoardFromCards(cards) {
   renderCards(remindersList, reminderCards, remindersCount, 'No reminders yet');
   renderCards(notesList, noteCards, notesCount, 'No notes yet');
   renderCards(calendarList, calendarCards, calendarCount, 'No calendar items yet');
+}
+
+function getPrefetchedNodes() {
+  const lastPrefetch = Number(sessionStorage.getItem(PREFETCH_TS_KEY) || 0);
+  if (!lastPrefetch || Date.now() - lastPrefetch > PREFETCH_TTL_MS) {
+    return null;
+  }
+
+  const raw = sessionStorage.getItem(PREFETCH_KEY);
+  if (!raw) return null;
+
+  try {
+    const nodes = JSON.parse(raw);
+    return Array.isArray(nodes) ? nodes : null;
+  } catch {
+    return null;
+  }
+}
+
+function renderDashboardNodes(nodes) {
+  const cards = nodes.map(deriveCardFromNode);
+  renderBoardFromCards(cards);
+  renderActivity(activityTimeline, buildActivityFromNodes(nodes));
+  updateStats(nodes);
+
+  allCards = cards;
+  if (currentTab === 'list') {
+    renderListView();
+  }
 }
 
 function renderActivity(container, activityData) {
@@ -1444,15 +1476,27 @@ function updateStats(nodes) {
   if (weekStatEl) weekStatEl.textContent = `🌟 ${timeLabel} active`;
 }
 
-async function loadDashboardData() {
+async function loadDashboardData(options = {}) {
+  const { ignoreCache = false } = options;
+  let usedCache = false;
+
+  if (!ignoreCache) {
+    const cachedNodes = getPrefetchedNodes();
+    if (cachedNodes) {
+      renderDashboardNodes(cachedNodes);
+      usedCache = true;
+    }
+  }
 
   if (!window.braindump || !window.braindump.getActiveNodes) {
-    renderCards(pendingList, FALLBACK_TASKS, pendingCount, 'No tasks yet');
-    renderCards(remindersList, FALLBACK_REMINDERS, remindersCount, 'No reminders yet');
-    renderCards(notesList, FALLBACK_NOTES, notesCount, 'No notes yet');
-    renderCards(calendarList, FALLBACK_CALENDAR, calendarCount, 'No calendar items yet');
-    renderActivity(activityTimeline, FALLBACK_ACTIVITY);
-    updateStats([]);
+    if (!usedCache) {
+      renderCards(pendingList, FALLBACK_TASKS, pendingCount, 'No tasks yet');
+      renderCards(remindersList, FALLBACK_REMINDERS, remindersCount, 'No reminders yet');
+      renderCards(notesList, FALLBACK_NOTES, notesCount, 'No notes yet');
+      renderCards(calendarList, FALLBACK_CALENDAR, calendarCount, 'No calendar items yet');
+      renderActivity(activityTimeline, FALLBACK_ACTIVITY);
+      updateStats([]);
+    }
     return;
   }
 
@@ -1463,25 +1507,19 @@ async function loadDashboardData() {
     }
 
     const nodes = result.body?.nodes || [];
-    const cards = nodes.map(deriveCardFromNode);
-
-    renderBoardFromCards(cards);
-    renderActivity(activityTimeline, buildActivityFromNodes(nodes));
-    updateStats(nodes);
-    
-    // Store all cards for list view
-    allCards = cards;
-    if (currentTab === 'list') {
-      renderListView();
-    }
+    renderDashboardNodes(nodes);
+    sessionStorage.setItem(PREFETCH_KEY, JSON.stringify(nodes));
+    sessionStorage.setItem(PREFETCH_TS_KEY, String(Date.now()));
   } catch (err) {
     console.error('[DASHBOARD] Failed to load nodes:', err);
-    renderCards(pendingList, FALLBACK_TASKS, pendingCount, 'No tasks yet');
-    renderCards(remindersList, FALLBACK_REMINDERS, remindersCount, 'No reminders yet');
-    renderCards(notesList, FALLBACK_NOTES, notesCount, 'No notes yet');
-    renderCards(calendarList, FALLBACK_CALENDAR, calendarCount, 'No calendar items yet');
-    renderActivity(activityTimeline, FALLBACK_ACTIVITY);
-    updateStats([]);
+    if (!usedCache) {
+      renderCards(pendingList, FALLBACK_TASKS, pendingCount, 'No tasks yet');
+      renderCards(remindersList, FALLBACK_REMINDERS, remindersCount, 'No reminders yet');
+      renderCards(notesList, FALLBACK_NOTES, notesCount, 'No notes yet');
+      renderCards(calendarList, FALLBACK_CALENDAR, calendarCount, 'No calendar items yet');
+      renderActivity(activityTimeline, FALLBACK_ACTIVITY);
+      updateStats([]);
+    }
   }
 }
 
@@ -1524,6 +1562,8 @@ function setupDeleteHandlers() {
         renderListView();
       }
     }
+    sessionStorage.removeItem(PREFETCH_KEY);
+    sessionStorage.removeItem(PREFETCH_TS_KEY);
 
     if (!nodeId || !window.braindump?.deleteNode) {
       return;
@@ -1545,7 +1585,7 @@ function setupRefreshButton() {
   if (!refreshBtn) return;
   refreshBtn.addEventListener('click', (e) => {
     e.preventDefault();
-    loadDashboardData();
+    loadDashboardData({ ignoreCache: true });
   });
 }
 
@@ -1584,7 +1624,9 @@ function setupCompleteTaskHandlers() {
           
           setTimeout(() => {
             card.remove();
-            loadDashboardData();
+            sessionStorage.removeItem(PREFETCH_KEY);
+            sessionStorage.removeItem(PREFETCH_TS_KEY);
+            loadDashboardData({ ignoreCache: true });
           }, 300);
         }
       } catch (err) {

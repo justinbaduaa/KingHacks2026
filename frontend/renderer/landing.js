@@ -11,6 +11,29 @@ const brainButton = document.getElementById('brain-button');
 const rippleLayer = document.getElementById('ripple-layer');
 const ripple = document.getElementById('ripple');
 const centerContent = document.querySelector('.center-content');
+const PREFETCH_KEY = 'prefetched-active-nodes';
+const PREFETCH_TS_KEY = 'prefetched-active-nodes-ts';
+const PREFETCH_TTL_MS = 60 * 1000;
+
+async function prefetchActiveNodes() {
+  if (!window.braindump?.getActiveNodes) return;
+
+  const lastPrefetch = Number(sessionStorage.getItem(PREFETCH_TS_KEY) || 0);
+  if (lastPrefetch && Date.now() - lastPrefetch < PREFETCH_TTL_MS) {
+    return;
+  }
+
+  try {
+    const result = await window.braindump.getActiveNodes();
+    const nodes = result?.body?.nodes;
+    if (result?.success && Array.isArray(nodes)) {
+      sessionStorage.setItem(PREFETCH_KEY, JSON.stringify(nodes));
+      sessionStorage.setItem(PREFETCH_TS_KEY, String(Date.now()));
+    }
+  } catch (err) {
+    console.warn('[LANDING] Prefetch active nodes failed:', err);
+  }
+}
 
 /**
  * Trigger the transition to dashboard
@@ -101,6 +124,7 @@ brainButton.addEventListener('click', triggerTransition);
 brainButton.addEventListener('keydown', handleKeydown);
 
 // Leave focus unset on load to avoid visual rings in the hero.
+void prefetchActiveNodes();
 
 // Prevent context menu on the page
 document.addEventListener('contextmenu', (e) => {
