@@ -512,6 +512,22 @@ Resources:
             Auth:
               Authorizer: NONE
 
+  AppleRemindersStatusFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handlers.apple_reminders_status.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref IntegrationsTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BackendApi
+            Path: /integrations/apple/reminders/status
+            Method: POST
+
   WhoAmIFunction:
     Type: AWS::Serverless::Function
     Properties:

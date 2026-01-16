@@ -11,7 +11,7 @@ const {
 const path = require("path");
 const fs = require("fs");
 const https = require("https");
-const { execSync } = require("child_process");
+const { execFile, execSync } = require("child_process");
 const { ensureValidTokens, loadConfig, loginInteractive, clearTokens } = require("./auth");
 const { loginGoogleInteractive } = require("./google_auth");
 const { createTranscribeSession } = require("./transcribe");
@@ -119,6 +119,79 @@ async function callApi(endpoint, method = "GET", body = null) {
 
     req.end();
   });
+}
+
+function escapeAppleScriptString(value) {
+  if (!value) return "";
+  return String(value)
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"')
+    .replace(/\r?\n/g, " ");
+}
+
+function formatAppleScriptDate(isoString) {
+  if (!isoString) return null;
+  const date = new Date(isoString);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  const pad = (val) => String(val).padStart(2, "0");
+  const datePart = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  const timePart = `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+  return `${datePart} ${timePart}`;
+}
+
+function createAppleReminder(node) {
+  if (process.platform !== "darwin") {
+    return Promise.resolve({ status: "skipped_non_macos" });
+  }
+
+  const reminder = node?.reminder || {};
+  const title = reminder.reminder_text || node?.title || "Reminder";
+  const notes = node?.body || "";
+  const dueIso = reminder.trigger_datetime_iso || reminder.when?.resolved_start_iso;
+  const dueDate = formatAppleScriptDate(dueIso);
+
+  const props = [`name:"${escapeAppleScriptString(title)}"`];
+  if (notes) {
+    props.push(`body:"${escapeAppleScriptString(notes)}"`);
+  }
+  if (dueDate) {
+    props.push(`due date:date "${escapeAppleScriptString(dueDate)}"`);
+  }
+
+  const script = [
+    'tell application "Reminders"',
+    `  make new reminder with properties {${props.join(", ")}}`,
+    "end tell",
+  ];
+
+  return new Promise((resolve, reject) => {
+    const args = script.flatMap((line) => ["-e", line]);
+    execFile("osascript", args, (error, stdout, stderr) => {
+      if (error) {
+        reject(new Error(stderr || error.message));
+        return;
+      }
+      resolve({ status: "created" });
+    });
+  });
+}
+
+async function reportReminderStatus(nodeId, status, error) {
+  if (!nodeId) return;
+  const payload = {
+    node_id: nodeId,
+    status,
+  };
+  if (error) {
+    payload.error = error;
+  }
+  try {
+    await callApi("integrations/apple/reminders/status", "POST", payload);
+  } catch (err) {
+    console.error("[MAIN] Failed to report reminder status:", err);
+  }
 }
 
 async function ensureCognitoLogin() {
@@ -597,6 +670,11 @@ app.whenReady().then(async () => {
       // Construct endpoint with node_id in path (matches API Gateway route)
       const endpoint = `node/${finalNodeId}/complete`;
       
+      if (node?.node_type === "reminder") {
+        if (!node.reminder) node.reminder = {};
+        node.reminder.provider_status = "queued_local";
+      }
+
       const body = {
         node: node,
         node_id: finalNodeId,
@@ -607,6 +685,15 @@ app.whenReady().then(async () => {
       if (result.statusCode >= 300) {
         return { success: false, ...result };
       }
+      if (node?.node_type === "reminder") {
+        try {
+          const localResult = await createAppleReminder(node);
+          await reportReminderStatus(finalNodeId, localResult.status);
+        } catch (err) {
+          await reportReminderStatus(finalNodeId, "failed", err?.message || "execution_failed");
+        }
+      }
+
       return { success: true, ...result };
     } catch (err) {
       return { success: false, error: err.message };

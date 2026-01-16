@@ -142,6 +142,18 @@ REMINDER_PAYLOAD_SCHEMA = {
             "minimum": 1,
             "maximum": 1440,
             "default": 10
+        },
+        "provider_status": {
+            "type": ["string", "null"],
+            "maxLength": 50
+        },
+        "provider_reminder_id": {
+            "type": ["string", "null"],
+            "maxLength": 200
+        },
+        "provider_error": {
+            "type": ["string", "null"],
+            "maxLength": 500
         }
     },
     "required": ["reminder_text", "when", "priority"],

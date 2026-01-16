@@ -7,6 +7,6 @@ architecture = "x86_64"
 handler = "handlers.ingest.handler"
 manifest_hash = ""
 packagetype = "Zip"
-functions = ["IngestFunction", "GetActiveNodesFunction", "PatchNodeFunction", "DeleteNodeFunction", "CompleteNodeFunction", "ExecuteNodeFunction", "GoogleTokenFunction", "GoogleOAuthCodeFunction", "GoogleGmailLabelsFunction", "GoogleAccessTokenFunction", "SlackTokenFunction", "SlackOAuthCodeFunction", "SlackOAuthStartFunction", "SlackOAuthCallbackFunction", "WhoAmIFunction"]
+functions = ["IngestFunction", "GetActiveNodesFunction", "PatchNodeFunction", "DeleteNodeFunction", "CompleteNodeFunction", "ExecuteNodeFunction", "GoogleTokenFunction", "GoogleOAuthCodeFunction", "GoogleGmailLabelsFunction", "GoogleAccessTokenFunction", "SlackTokenFunction", "SlackOAuthCodeFunction", "SlackOAuthStartFunction", "SlackOAuthCallbackFunction", "MicrosoftTokenFunction", "MicrosoftOAuthStartFunction", "MicrosoftOAuthCallbackFunction", "AppleRemindersStatusFunction", "WhoAmIFunction"]
 
 [layer_build_definitions]
