@@ -6,9 +6,12 @@ import time
 
 from lib.calendar_execute import CalendarExecutionError, execute_calendar_event
 from lib.contacts import get_contact_map
-from lib.dynamo import get_item
+from lib.dynamo import get_item, put_item
 from lib.gmail_execute import GmailExecutionError, execute_gmail_node
 from lib.google_calendar import CalendarError
+from lib.microsoft_oauth import MicrosoftOAuthError, refresh_access_token as refresh_ms_token
+from lib.ms_calendar_execute import MicrosoftCalendarExecutionError, execute_ms_calendar_event
+from lib.ms_email_execute import MicrosoftEmailExecutionError, execute_ms_email
 from lib.oauth_refresh import refresh_access_token
 from lib.slack_execute import SlackExecutionError, execute_slack_message
 from lib.slack_targets import get_slack_targets
@@ -83,6 +86,45 @@ def _get_slack_access_token(user_id: str) -> str:
     return item["access_token"]
 
 
+def _get_microsoft_access_token(user_id: str) -> str:
+    table_name = os.environ.get("INTEGRATIONS_TABLE_NAME")
+    pk = f"user#{user_id}"
+    sk = "integration#microsoft"
+    item = get_item(pk, sk, table_name=table_name)
+    if not item or not item.get("refresh_token"):
+        raise IntegrationExecutionError("Microsoft integration not connected", 404)
+
+    refresh_token = item.get("refresh_token")
+    try:
+        token_response = refresh_ms_token(refresh_token)
+    except MicrosoftOAuthError as exc:
+        message = str(exc)
+        if "invalid_grant" in message:
+            raise IntegrationExecutionError(
+                "Microsoft refresh token expired or revoked; reconnect required", 401
+            )
+        raise IntegrationExecutionError(message, 502)
+    except Exception:
+        raise IntegrationExecutionError("Failed to refresh Microsoft access token", 502)
+
+    access_token = token_response.get("access_token")
+    if not access_token:
+        raise IntegrationExecutionError("Missing access token in Microsoft refresh response", 502)
+
+    new_refresh = token_response.get("refresh_token")
+    if new_refresh and new_refresh != refresh_token:
+        item["refresh_token"] = new_refresh
+    item["access_token"] = access_token
+    expires_in = token_response.get("expires_in")
+    if expires_in:
+        try:
+            item["expires_at"] = int(time.time()) + int(expires_in)
+        except (TypeError, ValueError):
+            pass
+    put_item(item, table_name=table_name)
+    return access_token
+
+
 def execute_node_integration(
     user_id: str,
     node: dict,
@@ -94,10 +136,10 @@ def execute_node_integration(
 
     logger.info("execute_node_integration start node_type=%s node_id=%s", node_type, node_id)
 
-    if node_type not in ("calendar_placeholder", "email", "slack_message"):
+    if node_type not in ("calendar_placeholder", "email", "slack_message", "ms_email", "ms_calendar"):
         if require_supported:
             raise IntegrationExecutionError(
-                "Only calendar_placeholder, email, or slack_message nodes can be executed",
+                "Only calendar_placeholder, email, slack_message, ms_email, or ms_calendar nodes can be executed",
                 400,
             )
         return node, None
@@ -133,6 +175,33 @@ def execute_node_integration(
             )
             return updated_node, email_response
         except GmailExecutionError as exc:
+            raise IntegrationExecutionError(str(exc), exc.status_code)
+
+    if node_type == "ms_email":
+        ms_token = _get_microsoft_access_token(user_id)
+        contacts = get_contact_map(user_id)
+        try:
+            updated_node, ms_response = execute_ms_email(ms_token, node, contacts)
+            logger.info(
+                "execute_node_integration complete node_id=%s ms_email_status=%s",
+                node_id,
+                (ms_response or {}).get("status"),
+            )
+            return updated_node, ms_response
+        except MicrosoftEmailExecutionError as exc:
+            raise IntegrationExecutionError(str(exc), exc.status_code)
+
+    if node_type == "ms_calendar":
+        ms_token = _get_microsoft_access_token(user_id)
+        try:
+            updated_node, ms_response = execute_ms_calendar_event(ms_token, node)
+            logger.info(
+                "execute_node_integration complete node_id=%s ms_event_id=%s",
+                node_id,
+                (ms_response or {}).get("id"),
+            )
+            return updated_node, ms_response
+        except MicrosoftCalendarExecutionError as exc:
             raise IntegrationExecutionError(str(exc), exc.status_code)
 
     if node_type == "slack_message":

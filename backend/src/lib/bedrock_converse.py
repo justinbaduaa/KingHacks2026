@@ -305,6 +305,85 @@ SLACK_TOOL_PROPERTIES = {
     }
 }
 
+MS_EMAIL_TOOL_PROPERTIES = {
+    **TOOL_BASE_PROPERTIES,
+    "node_type": {
+        "type": "string",
+        "const": "ms_email",
+        "description": "Must be 'ms_email' for this tool"
+    },
+    "ms_email": {
+        "type": "object",
+        "properties": {
+            "to_name": {
+                "type": "string",
+                "description": "Recipient name if the user refers to a contact"
+            },
+            "to_email": {
+                "type": "string",
+                "description": "Recipient email if the user stated it"
+            },
+            "subject": {
+                "type": "string",
+                "description": "Email subject line"
+            },
+            "body": {
+                "type": "string",
+                "description": "Email body content"
+            },
+            "cc": {
+                "type": "array",
+                "items": {"type": "string"}
+            },
+            "bcc": {
+                "type": "array",
+                "items": {"type": "string"}
+            },
+            "send_mode": {
+                "type": "string",
+                "enum": ["send"],
+                "description": "Send immediately (only supported mode)"
+            }
+        },
+        "required": ["subject", "body"]
+    }
+}
+
+MS_CALENDAR_TOOL_PROPERTIES = {
+    **TOOL_BASE_PROPERTIES,
+    "node_type": {
+        "type": "string",
+        "const": "ms_calendar",
+        "description": "Must be 'ms_calendar' for this tool"
+    },
+    "ms_calendar": {
+        "type": "object",
+        "properties": {
+            "intent": {"type": "string", "description": "Description of calendar event intent"},
+            "event_title": {"type": "string", "description": "Title for the event"},
+            "start": {
+                "type": "object",
+                "properties": {
+                    "original_text": {"type": "string"},
+                    "kind": {"type": "string", "enum": ["datetime", "date", "time_window", "relative", "unspecified"]},
+                    "resolved_start_iso": {"type": "string"},
+                    "resolved_end_iso": {"type": "string"},
+                    "needs_clarification": {"type": "boolean"},
+                    "clarification_question": {"type": "string"},
+                    "resolution_notes": {"type": "string"}
+                },
+                "required": ["original_text", "kind", "needs_clarification"]
+            },
+            "start_datetime_iso": {"type": "string", "description": "ISO 8601 start datetime"},
+            "end_datetime_iso": {"type": "string", "description": "ISO 8601 end datetime"},
+            "duration_minutes": {"type": "integer"},
+            "location_text": {"type": "string"},
+            "attendees_text": {"type": "array", "items": {"type": "string"}}
+        },
+        "required": ["intent", "event_title", "start"]
+    }
+}
+
 
 def build_tools():
     """Build tool specifications for Bedrock Converse."""
@@ -388,6 +467,32 @@ def build_tools():
                     }
                 }
             }
+        },
+        {
+            "toolSpec": {
+                "name": "create_ms_email_node",
+                "description": "Create a Microsoft Outlook email node. Use when user wants to send an Outlook email.",
+                "inputSchema": {
+                    "json": {
+                        "type": "object",
+                        "properties": MS_EMAIL_TOOL_PROPERTIES,
+                        "required": base_required + ["ms_email"]
+                    }
+                }
+            }
+        },
+        {
+            "toolSpec": {
+                "name": "create_ms_calendar_node",
+                "description": "Create a Microsoft Calendar event node. Use when user wants to schedule in Outlook/Microsoft Calendar.",
+                "inputSchema": {
+                    "json": {
+                        "type": "object",
+                        "properties": MS_CALENDAR_TOOL_PROPERTIES,
+                        "required": base_required + ["ms_calendar"]
+                    }
+                }
+            }
         }
     ]
 
@@ -402,6 +507,8 @@ Analyze the transcript and create one or more nodes by calling the tools below.
 - create_calendar_placeholder_node: For scheduling events/meetings ("schedule...", "set up meeting...")
 - create_email_node: For sending emails ("email Sarah...", "send a note to Evan...")
 - create_slack_message_node: For sending Slack messages ("Slack Evan...", "message #general...")
+- create_ms_email_node: For Outlook email ("Outlook email Evan...", "send via Microsoft")
+- create_ms_calendar_node: For Microsoft Calendar ("schedule in Outlook", "add to Microsoft calendar")
 
 ## Critical Rules
 1. You MUST call at least one tool. Do not respond with text.
@@ -432,6 +539,8 @@ Assume the user's timezone is the offset in user_time_iso. Keep times as spoken 
 - CALENDAR: User wants to schedule an event, meeting, appointment, demo, or block time. Any "schedule/set up/book/plan" intent with a time should be a calendar_placeholder even if the date/time is ambiguous.
 - EMAIL: User wants to send or draft an email/message to someone.
 - SLACK: User wants to send a Slack message to a channel or a person.
+- MS_EMAIL: User wants to send an Outlook/Microsoft email.
+- MS_CALENDAR: User wants to schedule in Microsoft/Outlook Calendar.
 
 ## Calendar Routing Rules (Important)
 - If the user is scheduling or attending an event at a specific time or date, use create_calendar_placeholder_node.
@@ -462,6 +571,7 @@ Assume the user's timezone is the offset in user_time_iso. Keep times as spoken 
 - For email nodes, default send_mode to "send" unless the user asks to draft.
 - If slack_targets are provided in the user payload, use them to resolve channel/user names for Slack nodes.
 - slack_targets (if present) has channels and users with name and id fields.
+- If the user explicitly mentions Outlook/Microsoft for email or calendar, use the MS tools. Otherwise use the standard email/calendar tools.
 
 ## Examples
 

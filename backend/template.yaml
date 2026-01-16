@@ -23,10 +23,27 @@ Parameters:
     Type: String
     Default: ""
     Description: Secrets Manager ARN for Slack OAuth client secret
+  MicrosoftClientId:
+    Type: String
+    Default: ""
+    Description: Microsoft OAuth client ID
+  MicrosoftClientSecretArn:
+    Type: String
+    Default: ""
+    Description: Secrets Manager ARN for Microsoft OAuth client secret
+  MicrosoftTenant:
+    Type: String
+    Default: "common"
+    Description: Microsoft tenant (common, organizations, consumers, or tenant ID)
+  MicrosoftScopes:
+    Type: String
+    Default: "User.Read offline_access Mail.Send Calendars.ReadWrite"
+    Description: Microsoft OAuth scopes
 
 Conditions:
   HasGoogleSecret: !Not [!Equals [!Ref GoogleDesktopClientSecretArn, ""]]
   HasSlackSecret: !Not [!Equals [!Ref SlackClientSecretArn, ""]]
+  HasMicrosoftSecret: !Not [!Equals [!Ref MicrosoftClientSecretArn, ""]]
 
 Globals:
   Function:
@@ -47,6 +64,13 @@ Globals:
           - HasSlackSecret
           - !Sub "{{resolve:secretsmanager:${SlackClientSecretArn}:SecretString}}"
           - ""
+        MICROSOFT_CLIENT_ID: !Ref MicrosoftClientId
+        MICROSOFT_CLIENT_SECRET: !If
+          - HasMicrosoftSecret
+          - !Sub "{{resolve:secretsmanager:${MicrosoftClientSecretArn}:SecretString}}"
+          - ""
+        MICROSOFT_TENANT: !Ref MicrosoftTenant
+        MICROSOFT_SCOPES: !Ref MicrosoftScopes
 
 Resources:
   BackendApi:
@@ -434,6 +458,56 @@ Resources:
           Properties:
             RestApiId: !Ref BackendApi
             Path: /integrations/slack/callback
+            Method: GET
+            Auth:
+              Authorizer: NONE
+
+  MicrosoftTokenFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handlers.microsoft_token.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref IntegrationsTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BackendApi
+            Path: /integrations/microsoft/token
+            Method: ANY
+
+  MicrosoftOAuthStartFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handlers.microsoft_oauth_start.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref IntegrationsTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BackendApi
+            Path: /integrations/microsoft/start
+            Method: POST
+
+  MicrosoftOAuthCallbackFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handlers.microsoft_oauth_callback.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref IntegrationsTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BackendApi
+            Path: /integrations/microsoft/callback
             Method: GET
             Auth:
               Authorizer: NONE

@@ -321,6 +321,22 @@ EMAIL_PAYLOAD_SCHEMA = {
     "additionalProperties": False
 }
 
+# Microsoft email payload schema (same structure as email)
+MS_EMAIL_PAYLOAD_SCHEMA = {
+    **EMAIL_PAYLOAD_SCHEMA,
+    "properties": {
+        **EMAIL_PAYLOAD_SCHEMA["properties"],
+        "send_mode": {
+            "type": ["string", "null"],
+            "enum": ["send"],
+        },
+    },
+}
+
+# Microsoft calendar payload schema (same structure as calendar_placeholder)
+MS_CALENDAR_PAYLOAD_SCHEMA = {
+    **CALENDAR_PLACEHOLDER_PAYLOAD_SCHEMA,
+}
 # Slack message payload schema
 SLACK_MESSAGE_PAYLOAD_SCHEMA = {
     "type": "object",
@@ -381,7 +397,16 @@ BRAINDUMP_NODE_SCHEMA = {
         },
         "node_type": {
             "type": "string",
-            "enum": ["reminder", "todo", "note", "calendar_placeholder", "email", "slack_message"]
+            "enum": [
+                "reminder",
+                "todo",
+                "note",
+                "calendar_placeholder",
+                "email",
+                "slack_message",
+                "ms_email",
+                "ms_calendar",
+            ]
         },
         "title": {
             "type": "string",
@@ -433,6 +458,8 @@ BRAINDUMP_NODE_SCHEMA = {
         "calendar_placeholder": CALENDAR_PLACEHOLDER_PAYLOAD_SCHEMA,
         "email": EMAIL_PAYLOAD_SCHEMA,
         "slack_message": SLACK_MESSAGE_PAYLOAD_SCHEMA,
+        "ms_email": MS_EMAIL_PAYLOAD_SCHEMA,
+        "ms_calendar": MS_CALENDAR_PAYLOAD_SCHEMA,
         "global_warnings": {
             "type": "array",
             "items": {"type": "string", "maxLength": 300},

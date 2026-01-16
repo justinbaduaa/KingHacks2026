@@ -62,5 +62,14 @@ def handler(event, context):
             "channel_id": (event_response or {}).get("channel_id"),
             "status": (event_response or {}).get("status"),
         }
+    elif node.get("node_type") == "ms_email":
+        response_body["ms_email"] = {
+            "status": (event_response or {}).get("status"),
+        }
+    elif node.get("node_type") == "ms_calendar":
+        response_body["ms_calendar"] = {
+            "event_id": (event_response or {}).get("id"),
+            "event_link": (event_response or {}).get("webLink"),
+        }
 
     return api_response(200, response_body)
