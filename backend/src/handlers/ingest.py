@@ -9,6 +9,7 @@ from lib.response import api_response, error_response
 from lib.auth import get_user_id
 from lib.bedrock_converse import call_converse
 from lib.contacts import format_contacts_for_payload, get_contact_map
+from lib.slack_targets import format_slack_targets_for_payload, get_slack_targets
 from lib.time_normalize import (
     parse_offset_from_user_time_iso,
     compute_local_day,
@@ -48,7 +49,11 @@ def parse_request_body(event: dict) -> tuple[dict | None, str | None]:
     return body, None
 
 
-def build_user_payload(body: dict, contacts: list[dict] | None = None) -> dict:
+def build_user_payload(
+    body: dict,
+    contacts: list[dict] | None = None,
+    slack_targets: dict | None = None,
+) -> dict:
     """Build the payload to send to Bedrock."""
     user_time_iso = body["user_time_iso"]
     captured_at_iso = body.get("captured_at_iso") or user_time_iso
@@ -66,6 +71,8 @@ def build_user_payload(body: dict, contacts: list[dict] | None = None) -> dict:
     }
     if contacts:
         payload["contacts"] = contacts
+    if slack_targets:
+        payload["slack_targets"] = slack_targets
     return payload
 
 
@@ -125,7 +132,13 @@ def handler(event, context):
     # Build payload for Bedrock
     contacts_map = get_contact_map(user_id)
     contacts_payload = format_contacts_for_payload(contacts_map)
-    user_payload = build_user_payload(body, contacts=contacts_payload)
+    slack_targets = get_slack_targets(user_id)
+    slack_payload = (
+        format_slack_targets_for_payload(slack_targets) if slack_targets else None
+    )
+    user_payload = build_user_payload(
+        body, contacts=contacts_payload, slack_targets=slack_payload
+    )
     
     # Get model ID from environment
     model_id = os.environ.get("BEDROCK_MODEL_ID", DEFAULT_MODEL_ID)

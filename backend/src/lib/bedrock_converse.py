@@ -265,6 +265,46 @@ EMAIL_TOOL_PROPERTIES = {
     }
 }
 
+SLACK_TOOL_PROPERTIES = {
+    **TOOL_BASE_PROPERTIES,
+    "node_type": {
+        "type": "string",
+        "const": "slack_message",
+        "description": "Must be 'slack_message' for this tool"
+    },
+    "slack_message": {
+        "type": "object",
+        "properties": {
+            "message": {
+                "type": "string",
+                "description": "Slack message text to send"
+            },
+            "channel_name": {
+                "type": "string",
+                "description": "Slack channel name if referenced (e.g. #general)"
+            },
+            "channel_id": {
+                "type": "string",
+                "description": "Slack channel ID if known"
+            },
+            "recipient_name": {
+                "type": "string",
+                "description": "Recipient name for a DM if the user names a person"
+            },
+            "recipient_id": {
+                "type": "string",
+                "description": "Slack user ID for a DM if known"
+            },
+            "send_mode": {
+                "type": "string",
+                "enum": ["send"],
+                "description": "Send immediately (only supported mode)"
+            }
+        },
+        "required": ["message"]
+    }
+}
+
 
 def build_tools():
     """Build tool specifications for Bedrock Converse."""
@@ -335,6 +375,19 @@ def build_tools():
                     }
                 }
             }
+        },
+        {
+            "toolSpec": {
+                "name": "create_slack_message_node",
+                "description": "Create a Slack message node. Use when user wants to send a Slack message or DM.",
+                "inputSchema": {
+                    "json": {
+                        "type": "object",
+                        "properties": SLACK_TOOL_PROPERTIES,
+                        "required": base_required + ["slack_message"]
+                    }
+                }
+            }
         }
     ]
 
@@ -348,6 +401,7 @@ Analyze the transcript and create one or more nodes by calling the tools below.
 - create_note_node: For information capture, thoughts, ideas (no specific action)
 - create_calendar_placeholder_node: For scheduling events/meetings ("schedule...", "set up meeting...")
 - create_email_node: For sending emails ("email Sarah...", "send a note to Evan...")
+- create_slack_message_node: For sending Slack messages ("Slack Evan...", "message #general...")
 
 ## Critical Rules
 1. You MUST call at least one tool. Do not respond with text.
@@ -377,6 +431,7 @@ Assume the user's timezone is the offset in user_time_iso. Keep times as spoken 
 - NOTE: User is capturing information, thoughts, or ideas. No specific action required.
 - CALENDAR: User wants to schedule an event, meeting, appointment, demo, or block time. Any "schedule/set up/book/plan" intent with a time should be a calendar_placeholder even if the date/time is ambiguous.
 - EMAIL: User wants to send or draft an email/message to someone.
+- SLACK: User wants to send a Slack message to a channel or a person.
 
 ## Calendar Routing Rules (Important)
 - If the user is scheduling or attending an event at a specific time or date, use create_calendar_placeholder_node.
@@ -405,6 +460,8 @@ Assume the user's timezone is the offset in user_time_iso. Keep times as spoken 
 - If contacts are provided in the user payload, use them to resolve recipient names for email nodes.
 - contacts (if present) is a list of objects with fields: name, email.
 - For email nodes, default send_mode to "send" unless the user asks to draft.
+- If slack_targets are provided in the user payload, use them to resolve channel/user names for Slack nodes.
+- slack_targets (if present) has channels and users with name and id fields.
 
 ## Examples
 

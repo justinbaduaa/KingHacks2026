@@ -2,6 +2,7 @@
 
 import logging
 import os
+import time
 
 from lib.calendar_execute import CalendarExecutionError, execute_calendar_event
 from lib.contacts import get_contact_map
@@ -9,6 +10,8 @@ from lib.dynamo import get_item
 from lib.gmail_execute import GmailExecutionError, execute_gmail_node
 from lib.google_calendar import CalendarError
 from lib.oauth_refresh import refresh_access_token
+from lib.slack_execute import SlackExecutionError, execute_slack_message
+from lib.slack_targets import get_slack_targets
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -59,6 +62,27 @@ def _get_google_access_token(user_id: str) -> str:
     return access_token
 
 
+def _get_slack_access_token(user_id: str) -> str:
+    table_name = os.environ.get("INTEGRATIONS_TABLE_NAME")
+    pk = f"user#{user_id}"
+    sk = "integration#slack"
+    item = get_item(pk, sk, table_name=table_name)
+    if not item or not item.get("access_token"):
+        raise IntegrationExecutionError("Slack integration not connected", 404)
+
+    expires_at = item.get("expires_at")
+    if expires_at:
+        try:
+            if int(expires_at) <= int(time.time()):
+                raise IntegrationExecutionError(
+                    "Slack access token expired; reconnect required", 401
+                )
+        except (TypeError, ValueError):
+            pass
+
+    return item["access_token"]
+
+
 def execute_node_integration(
     user_id: str,
     node: dict,
@@ -70,16 +94,16 @@ def execute_node_integration(
 
     logger.info("execute_node_integration start node_type=%s node_id=%s", node_type, node_id)
 
-    if node_type not in ("calendar_placeholder", "email"):
+    if node_type not in ("calendar_placeholder", "email", "slack_message"):
         if require_supported:
             raise IntegrationExecutionError(
-                "Only calendar_placeholder or email nodes can be executed", 400
+                "Only calendar_placeholder, email, or slack_message nodes can be executed",
+                400,
             )
         return node, None
 
-    access_token = _get_google_access_token(user_id)
-
     if node_type == "calendar_placeholder":
+        access_token = _get_google_access_token(user_id)
         try:
             updated_node, event_response = execute_calendar_event(access_token, node)
             event_id = (event_response or {}).get("id")
@@ -96,15 +120,36 @@ def execute_node_integration(
         except Exception:
             raise IntegrationExecutionError("Failed to create calendar event", 502)
 
-    contacts = get_contact_map(user_id)
-    try:
-        updated_node, email_response = execute_gmail_node(access_token, node, contacts)
-        message_id = (email_response or {}).get("message_id")
-        logger.info(
-            "execute_node_integration complete node_id=%s message_id=%s",
-            node_id,
-            message_id,
-        )
-        return updated_node, email_response
-    except GmailExecutionError as exc:
-        raise IntegrationExecutionError(str(exc), exc.status_code)
+    if node_type == "email":
+        access_token = _get_google_access_token(user_id)
+        contacts = get_contact_map(user_id)
+        try:
+            updated_node, email_response = execute_gmail_node(access_token, node, contacts)
+            message_id = (email_response or {}).get("message_id")
+            logger.info(
+                "execute_node_integration complete node_id=%s message_id=%s",
+                node_id,
+                message_id,
+            )
+            return updated_node, email_response
+        except GmailExecutionError as exc:
+            raise IntegrationExecutionError(str(exc), exc.status_code)
+
+    if node_type == "slack_message":
+        slack_token = _get_slack_access_token(user_id)
+        slack_targets = get_slack_targets(user_id)
+        try:
+            updated_node, slack_response = execute_slack_message(
+                slack_token, node, slack_targets
+            )
+            message_ts = (slack_response or {}).get("message_ts")
+            logger.info(
+                "execute_node_integration complete node_id=%s slack_ts=%s",
+                node_id,
+                message_ts,
+            )
+            return updated_node, slack_response
+        except SlackExecutionError as exc:
+            raise IntegrationExecutionError(str(exc), exc.status_code)
+
+    return node, None

@@ -15,9 +15,18 @@ Parameters:
     Type: String
     Default: ""
     Description: Secrets Manager ARN for Google OAuth client secret (optional)
+  SlackClientId:
+    Type: String
+    Default: ""
+    Description: Slack OAuth client ID (user token)
+  SlackClientSecretArn:
+    Type: String
+    Default: ""
+    Description: Secrets Manager ARN for Slack OAuth client secret
 
 Conditions:
   HasGoogleSecret: !Not [!Equals [!Ref GoogleDesktopClientSecretArn, ""]]
+  HasSlackSecret: !Not [!Equals [!Ref SlackClientSecretArn, ""]]
 
 Globals:
   Function:
@@ -32,6 +41,11 @@ Globals:
         GOOGLE_OAUTH_CLIENT_SECRET: !If
           - HasGoogleSecret
           - !Sub "{{resolve:secretsmanager:${GoogleDesktopClientSecretArn}:SecretString}}"
+          - ""
+        SLACK_CLIENT_ID: !Ref SlackClientId
+        SLACK_CLIENT_SECRET: !If
+          - HasSlackSecret
+          - !Sub "{{resolve:secretsmanager:${SlackClientSecretArn}:SecretString}}"
           - ""
 
 Resources:
@@ -357,6 +371,72 @@ Resources:
             RestApiId: !Ref BackendApi
             Path: /integrations/google/access-token
             Method: GET
+
+  SlackTokenFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handlers.slack_token.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref IntegrationsTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BackendApi
+            Path: /integrations/slack/token
+            Method: ANY
+
+  SlackOAuthCodeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handlers.slack_oauth_code.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref IntegrationsTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BackendApi
+            Path: /integrations/slack/code
+            Method: POST
+
+  SlackOAuthStartFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handlers.slack_oauth_start.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref IntegrationsTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BackendApi
+            Path: /integrations/slack/start
+            Method: POST
+
+  SlackOAuthCallbackFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handlers.slack_oauth_callback.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref IntegrationsTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BackendApi
+            Path: /integrations/slack/callback
+            Method: GET
+            Auth:
+              Authorizer: NONE
 
   WhoAmIFunction:
     Type: AWS::Serverless::Function

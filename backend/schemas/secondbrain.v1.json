@@ -309,6 +309,49 @@
       },
       "required": ["subject", "body"],
       "additionalProperties": false
+    },
+    "slack_message_payload": {
+      "type": "object",
+      "properties": {
+        "message": {
+          "type": "string",
+          "maxLength": 4000
+        },
+        "channel_name": {
+          "type": ["string", "null"],
+          "maxLength": 120
+        },
+        "channel_id": {
+          "type": ["string", "null"],
+          "maxLength": 40
+        },
+        "recipient_name": {
+          "type": ["string", "null"],
+          "maxLength": 120
+        },
+        "recipient_id": {
+          "type": ["string", "null"],
+          "maxLength": 40
+        },
+        "send_mode": {
+          "type": ["string", "null"],
+          "enum": ["send"]
+        },
+        "provider_message_ts": {
+          "type": ["string", "null"],
+          "maxLength": 50
+        },
+        "provider_channel_id": {
+          "type": ["string", "null"],
+          "maxLength": 40
+        },
+        "provider_status": {
+          "type": ["string", "null"],
+          "maxLength": 50
+        }
+      },
+      "required": ["message"],
+      "additionalProperties": false
     }
   },
   "properties": {
@@ -318,7 +361,7 @@
     },
     "node_type": {
       "type": "string",
-      "enum": ["reminder", "todo", "note", "calendar_placeholder", "email"]
+      "enum": ["reminder", "todo", "note", "calendar_placeholder", "email", "slack_message"]
     },
     "title": {
       "type": "string",
@@ -369,6 +412,7 @@
     "note": { "$ref": "#/$defs/note_payload" },
     "calendar_placeholder": { "$ref": "#/$defs/calendar_placeholder_payload" },
     "email": { "$ref": "#/$defs/email_payload" },
+    "slack_message": { "$ref": "#/$defs/slack_message_payload" },
     "global_warnings": {
       "type": "array",
       "items": { "type": "string", "maxLength": 300 },

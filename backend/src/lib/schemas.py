@@ -321,6 +321,51 @@ EMAIL_PAYLOAD_SCHEMA = {
     "additionalProperties": False
 }
 
+# Slack message payload schema
+SLACK_MESSAGE_PAYLOAD_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "message": {
+            "type": "string",
+            "maxLength": 4000
+        },
+        "channel_name": {
+            "type": ["string", "null"],
+            "maxLength": 120
+        },
+        "channel_id": {
+            "type": ["string", "null"],
+            "maxLength": 40
+        },
+        "recipient_name": {
+            "type": ["string", "null"],
+            "maxLength": 120
+        },
+        "recipient_id": {
+            "type": ["string", "null"],
+            "maxLength": 40
+        },
+        "send_mode": {
+            "type": ["string", "null"],
+            "enum": ["send"]
+        },
+        "provider_message_ts": {
+            "type": ["string", "null"],
+            "maxLength": 50
+        },
+        "provider_channel_id": {
+            "type": ["string", "null"],
+            "maxLength": 40
+        },
+        "provider_status": {
+            "type": ["string", "null"],
+            "maxLength": 50
+        }
+    },
+    "required": ["message"],
+    "additionalProperties": False
+}
+
 # Main BrainDump Node Envelope schema
 BRAINDUMP_NODE_SCHEMA = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -336,7 +381,7 @@ BRAINDUMP_NODE_SCHEMA = {
         },
         "node_type": {
             "type": "string",
-            "enum": ["reminder", "todo", "note", "calendar_placeholder", "email"]
+            "enum": ["reminder", "todo", "note", "calendar_placeholder", "email", "slack_message"]
         },
         "title": {
             "type": "string",
@@ -387,6 +432,7 @@ BRAINDUMP_NODE_SCHEMA = {
         "note": NOTE_PAYLOAD_SCHEMA,
         "calendar_placeholder": CALENDAR_PLACEHOLDER_PAYLOAD_SCHEMA,
         "email": EMAIL_PAYLOAD_SCHEMA,
+        "slack_message": SLACK_MESSAGE_PAYLOAD_SCHEMA,
         "global_warnings": {
             "type": "array",
             "items": {"type": "string", "maxLength": 300},

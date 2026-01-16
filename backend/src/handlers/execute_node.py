@@ -56,5 +56,11 @@ def handler(event, context):
             "draft_id": (event_response or {}).get("draft_id"),
             "status": (event_response or {}).get("status"),
         }
+    elif node.get("node_type") == "slack_message":
+        response_body["slack_message"] = {
+            "message_ts": (event_response or {}).get("message_ts"),
+            "channel_id": (event_response or {}).get("channel_id"),
+            "status": (event_response or {}).get("status"),
+        }
 
     return api_response(200, response_body)
