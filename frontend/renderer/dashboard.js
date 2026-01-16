@@ -7,6 +7,14 @@ const FALLBACK_NOTES = [];
 const FALLBACK_CALENDAR = [];
 const FALLBACK_ACTIVITY = [];
 
+// ===== Utility Functions =====
+function escapeHtml(text) {
+  if (!text) return '';
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
 // ===== DOM Elements =====
 const pendingList = document.getElementById('pending-list');
 const remindersList = document.getElementById('reminders-list');
@@ -688,28 +696,6 @@ function setupCanvasInteraction(container) {
   const tooltip = document.getElementById('canvas-tooltip');
   const nodePanel = document.getElementById('canvas-node-panel');
   const panelContent = document.getElementById('panel-content');
-  const panelCloseBtn = document.getElementById('panel-close-btn');
-
-  // Close panel button
-  if (panelCloseBtn) {
-    panelCloseBtn.addEventListener('click', () => {
-      nodePanel.classList.remove('visible');
-      
-      // Reset focused node highlighting
-      if (currentlyFocusedNode) {
-        if (currentlyFocusedNode.material) {
-          currentlyFocusedNode.material.emissiveIntensity = 0.3;
-        }
-        currentlyFocusedNode.scale.set(1, 1, 1);
-        currentlyFocusedNode = null;
-      }
-      
-      // Resume auto-rotation
-      if (brainControls) {
-        brainControls.autoRotate = true;
-      }
-    });
-  }
 
   // Track hovered object for highlighting
   let hoveredObject = null;
@@ -780,21 +766,41 @@ function setupCanvasInteraction(container) {
   });
 
   // Click for detail panel and focus on node
-  container.addEventListener('click', (event) => {
-    const rect = container.getBoundingClientRect();
-    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-    mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  // Use pointerdown/pointerup to distinguish clicks from drags (OrbitControls compatibility)
+  let pointerDownPos = { x: 0, y: 0 };
+  let pointerDownTime = 0;
 
-    raycaster.setFromCamera(mouse, brainCamera);
-    const spheres = nodeMeshes.filter(m => m.geometry && m.geometry.type === 'SphereGeometry');
-    const intersects = raycaster.intersectObjects(spheres);
+  container.addEventListener('pointerdown', (event) => {
+    pointerDownPos.x = event.clientX;
+    pointerDownPos.y = event.clientY;
+    pointerDownTime = Date.now();
+  });
 
-    if (intersects.length > 0) {
-      const obj = intersects[0].object;
-      const card = obj.userData.card;
-      if (card) {
-        showNodePanel(card, panelContent, nodePanel);
-        focusOnNode(obj);
+  container.addEventListener('pointerup', (event) => {
+    // Check if it was a click (not a drag)
+    const dx = event.clientX - pointerDownPos.x;
+    const dy = event.clientY - pointerDownPos.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    const duration = Date.now() - pointerDownTime;
+
+    // Only treat as click if moved less than 5px and lasted less than 300ms
+    if (distance < 5 && duration < 300) {
+      const rect = container.getBoundingClientRect();
+      mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, brainCamera);
+      const spheres = nodeMeshes.filter(m => m.geometry && m.geometry.type === 'SphereGeometry');
+      const intersects = raycaster.intersectObjects(spheres);
+
+      if (intersects.length > 0) {
+        const obj = intersects[0].object;
+        const card = obj.userData.card;
+        if (card) {
+          console.log('[CANVAS] Clicked node:', card.title, card.type);
+          showNodePanel(card, panelContent, nodePanel);
+          focusOnNode(obj);
+        }
       }
     }
   });
@@ -881,6 +887,13 @@ function highlightFocusedNode(nodeMesh) {
 }
 
 function showNodePanel(card, panelContent, nodePanel) {
+  console.log('[CANVAS] showNodePanel called:', { card, panelContent: !!panelContent, nodePanel: !!nodePanel });
+  
+  if (!panelContent || !nodePanel) {
+    console.error('[CANVAS] Panel elements not found!');
+    return;
+  }
+
   const typeLabel = card.type.charAt(0).toUpperCase() + card.type.slice(1);
   const description = card.description || card.body || '';
 
