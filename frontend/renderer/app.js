@@ -35,101 +35,118 @@ let audioWorkletNode = null;  // AudioWorklet node for modern audio processing
 let workletReady = false;  // Flag to track if worklet is registered
 let isTranscribing = false;
 
-const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-function parseIsoParts(isoString) {
-  if (!isoString || typeof isoString !== 'string') return null;
-  const match = isoString.match(
-    /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?/
+// Helper: Parse date/time string to Date object
+function parseDateTime(value) {
+  if (!value || typeof value !== 'string') return null;
+  const dateOnlyMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (dateOnlyMatch) {
+    const [, year, month, day] = dateOnlyMatch.map(Number);
+    return new Date(year, month - 1, day);
+  }
+  const dateTimeMatch = value.match(
+    /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?/
   );
-  if (!match) return null;
-  const [, year, month, day, hour, minute] = match;
+  if (dateTimeMatch) {
+    const [, year, month, day, hour, minute, second] = dateTimeMatch;
+    return new Date(
+      Number(year),
+      Number(month) - 1,
+      Number(day),
+      Number(hour),
+      Number(minute),
+      Number(second || 0)
+    );
+  }
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatDateLabel(date) {
+  if (!date) return '';
+  return date.toLocaleDateString([], {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+function formatTimeLabel(date, hasTime) {
+  if (!date) return '';
+  if (!hasTime) return 'All day';
+  return date.toLocaleTimeString([], {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function buildDateTimeLabels(value) {
+  const date = parseDateTime(value);
+  const hasTime = Boolean(value && value.includes('T'));
   return {
-    year: Number(year),
-    month: Number(month),
-    day: Number(day),
-    hour: hour === undefined ? null : Number(hour),
-    minute: minute === undefined ? 0 : Number(minute),
+    dateLabel: formatDateLabel(date),
+    timeLabel: formatTimeLabel(date, hasTime),
   };
-}
-
-function formatDateLabel(parts) {
-  if (!parts) return null;
-  const month = MONTHS_SHORT[parts.month - 1];
-  if (!month) return null;
-  return `${month} ${parts.day}`;
-}
-
-function formatTimeLabel(parts) {
-  if (!parts || parts.hour === null) return null;
-  const hours = parts.hour % 12 || 12;
-  const period = parts.hour >= 12 ? 'p.m.' : 'a.m.';
-  if (parts.minute && parts.minute !== 0) {
-    return `${hours}:${String(parts.minute).padStart(2, '0')} ${period}`;
-  }
-  return `${hours} ${period}`;
-}
-
-// Extract date/time and location info from node
-function extractTimeAndLocation(node) {
-  const nodeType = node.node_type || '';
-  let dateStr = null;
-  let timeStr = null;
-  let locationStr = null;
-
-  if (nodeType === 'calendar_placeholder' && node.calendar_placeholder) {
-    const cal = node.calendar_placeholder;
-    if (cal.start_datetime_iso) {
-      const parts = parseIsoParts(cal.start_datetime_iso);
-      dateStr = formatDateLabel(parts);
-      timeStr = formatTimeLabel(parts);
-    }
-    if (cal.location_text) {
-      locationStr = cal.location_text;
-    }
-  } else if (nodeType === 'reminder' && node.reminder) {
-    const rem = node.reminder;
-    if (rem.trigger_datetime_iso) {
-      const parts = parseIsoParts(rem.trigger_datetime_iso);
-      dateStr = formatDateLabel(parts);
-      timeStr = formatTimeLabel(parts);
-    }
-  } else if (nodeType === 'todo' && node.todo) {
-    const todo = node.todo;
-    if (todo.due_datetime_iso) {
-      const parts = parseIsoParts(todo.due_datetime_iso);
-      dateStr = formatDateLabel(parts);
-      timeStr = formatTimeLabel(parts);
-    } else if (todo.due_date_iso) {
-      const parts = parseIsoParts(todo.due_date_iso);
-      dateStr = formatDateLabel(parts);
-    }
-  }
-
-  return { dateStr, timeStr, locationStr };
 }
 
 // Convert Bedrock nodes to UI task format
 function convertNodesToTasks(nodes) {
   if (!nodes || !Array.isArray(nodes)) return [];
   return nodes.map(node => {
-    // Map node_type to display type
-    let displayType = node.node_type || 'note';
-    if (displayType === 'calendar_placeholder') displayType = 'calendar';
-    displayType = displayType.charAt(0).toUpperCase() + displayType.slice(1);
+     // Map node_type to display type
+    let rawType = node.node_type || 'note';
+    if (rawType === 'calendar_placeholder' || rawType === 'calendar') rawType = 'calendar';
+    if (rawType === 'todo') rawType = 'task';
     
-    // Extract time and location
-    const { dateStr, timeStr, locationStr } = extractTimeAndLocation(node);
+    // Capitalized display type
+    const displayType = rawType.charAt(0).toUpperCase() + rawType.slice(1);
     
-    return {
+    const baseTitle = node.title || node.body || node.todo?.task || node.reminder?.reminder_text || node.calendar_placeholder?.event_title || 'Untitled';
+    
+    const task = {
       type: displayType,
-      text: node.title || node.body || 'Untitled',
+      text: baseTitle,
       nodeId: node.node_id,
       fullNode: node,
-      dateStr: dateStr,
-      timeStr: timeStr,
-      locationStr: locationStr
+      dateLabel: '',
+      timeLabel: '',
+      locationLabel: ''
     };
+
+    // Extract type-specific metadata
+    if (rawType === 'task') {
+      const dueDateTime = node.todo?.due_datetime_iso || node.todo?.due?.resolved_start_iso;
+      const dueDate = node.todo?.due_date_iso;
+      const labels = buildDateTimeLabels(dueDateTime || dueDate);
+      task.dateLabel = labels.dateLabel;
+      task.timeLabel = dueDateTime ? labels.timeLabel : (dueDate ? 'All day' : '');
+    } else if (rawType === 'reminder') {
+      const trigger = node.reminder?.trigger_datetime_iso || node.reminder?.when?.resolved_start_iso || node.time_interpretation?.resolved_start_iso;
+      const labels = buildDateTimeLabels(trigger);
+      task.dateLabel = labels.dateLabel;
+      task.timeLabel = labels.timeLabel;
+    } else if (rawType === 'calendar') {
+      const startIso = node.calendar_placeholder?.start_datetime_iso || node.calendar_placeholder?.start?.resolved_start_iso;
+      let endIso = node.calendar_placeholder?.end_datetime_iso || node.calendar_placeholder?.start?.resolved_end_iso;
+      const durationMinutes = node.calendar_placeholder?.duration_minutes;
+      
+      const startLabels = buildDateTimeLabels(startIso);
+      let timeLabel = startLabels.timeLabel;
+      
+      if (startIso && durationMinutes) {
+         // Calculate end time if simple duration
+         const startDate = parseDateTime(startIso);
+         if (startDate) {
+            const endDate = new Date(startDate.getTime() + durationMinutes * 60000);
+            timeLabel = `${startLabels.timeLabel} - ${formatTimeLabel(endDate, true)}`;
+         }
+      }
+      
+      task.dateLabel = startLabels.dateLabel;
+      task.timeLabel = timeLabel;
+      task.locationLabel = node.calendar_placeholder?.location_text || '';
+    }
+    
+    return task;
   });
 }
 
@@ -260,25 +277,30 @@ function renderCards(tasks) {
       : '';
     
     card.innerHTML = `
-      <div class="action-left">
-        <div class="action-icon" data-type="${task.type.toLowerCase()}">
-          ${getIconForType(task.type)}
+      <div class="card-header">
+        <span class="card-pill ${task.type.toLowerCase()}">${task.type}</span>
+        <div class="action-buttons">
+          <button class="btn-approve" title="Approve">
+            <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+          </button>
+          <button class="btn-dismiss" title="Dismiss">
+            <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
         </div>
-        ${dateTimeHtml}
       </div>
-      <div class="action-content">
-        <div class="action-title-row">
-          <div class="action-text">${task.text}</div>
-          ${locationHtml}
-        </div>
+      
+      <div class="action-content-body">
+        <div class="card-title action-text">${task.text}</div>
+        ${task.locationLabel ? `
+        <div class="card-detail-row">
+          <span class="detail-label">Location</span>
+          <span class="detail-value">${task.locationLabel}</span>
+        </div>` : ''}
       </div>
-      <div class="action-buttons">
-        <button class="btn-approve" title="Approve">
-          <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
-        </button>
-        <button class="btn-dismiss" title="Dismiss">
-          <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
+      
+      <div class="card-meta-row">
+        <span class="card-date">${task.dateLabel || ''}</span>
+        <span class="card-time">${task.timeLabel || ''}</span>
       </div>
     `;
     

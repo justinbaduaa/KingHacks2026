@@ -1,5 +1,5 @@
 /**
- * Landing Page - Entry point for SecondBrain
+ * Landing Page - Entry point for secondbrain
  * Handles the brain click interaction and transition to dashboard
  */
 

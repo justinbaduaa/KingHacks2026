@@ -34,6 +34,12 @@ contextBridge.exposeInMainWorld('braindump', {
   authStatus: () => ipcRenderer.invoke('auth-status'),
   authLogin: () => ipcRenderer.invoke('auth-login'),
   
+  // Shortcut settings
+  getShortcut: () => ipcRenderer.invoke('get-shortcut'),
+  setShortcut: (shortcut) => ipcRenderer.invoke('set-shortcut', shortcut),
+  pauseShortcut: () => ipcRenderer.invoke('pause-shortcut'),
+  resumeShortcut: () => ipcRenderer.invoke('resume-shortcut'),
+  
   // Event listeners - Window
   onStartListening: (callback) => ipcRenderer.on('start-listening', callback),
   onStopListening: (callback) => ipcRenderer.on('stop-listening', callback),
