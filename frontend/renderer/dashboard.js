@@ -143,10 +143,35 @@ function renderCalendarCard(item) {
   `;
 }
 
+function renderEmailCard(item) {
+  return `
+    <div class="kanban-card email-card" data-id="${item.id}" data-node-id="${item.nodeId || ''}" data-type="email">
+      <div class="card-actions">
+        <button class="card-action-btn card-delete" type="button" data-action="delete" title="Delete">
+          <i data-feather="x"></i>
+        </button>
+      </div>
+      <div class="card-header">
+        <span class="card-pill email">Email</span>
+      </div>
+      <h3 class="card-title">${item.title}</h3>
+      <div class="card-detail-row">
+        <span class="detail-label">To</span>
+        <span class="detail-value">${item.recipientLabel}</span>
+      </div>
+      <div class="card-detail-row">
+        <span class="detail-label">Mode</span>
+        <span class="detail-value">${item.sendModeLabel}</span>
+      </div>
+    </div>
+  `;
+}
+
 function renderCard(item) {
   if (item.type === 'reminder') return renderReminderCard(item);
   if (item.type === 'note') return renderNoteCard(item);
   if (item.type === 'calendar') return renderCalendarCard(item);
+  if (item.type === 'email') return renderEmailCard(item);
   return renderTaskCard(item);
 }
 
@@ -334,6 +359,21 @@ function deriveCardFromNode(node) {
       locationLabel: node.calendar_placeholder?.location_text || 'Location TBD',
       dateLabel: startLabels.dateLabel,
       timeLabel,
+    };
+  }
+
+  if (nodeType === 'email') {
+    const emailPayload = node.email || {};
+    const recipient = emailPayload.to_email || emailPayload.to_name || 'Recipient TBD';
+    const sendMode = (emailPayload.send_mode || 'send').toUpperCase();
+
+    return {
+      id: nodeId,
+      nodeId,
+      type: nodeType,
+      title: emailPayload.subject || baseTitle,
+      recipientLabel: recipient,
+      sendModeLabel: sendMode,
     };
   }
 
@@ -1409,7 +1449,7 @@ async function loadDashboardData() {
     cards.forEach((card) => {
       if (card.type === 'reminder') {
         reminderCards.push(card);
-      } else if (card.type === 'note') {
+      } else if (card.type === 'note' || card.type === 'email') {
         noteCards.push(card);
       } else if (card.type === 'calendar') {
         calendarCards.push(card);

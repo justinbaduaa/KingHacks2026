@@ -9,12 +9,13 @@
   "transcribeSampleRate": 16000,
   "google": {
     "clientId": "889539163514-10nft2cs9sg6r66ssrusa649qm82kajr.apps.googleusercontent.com",
-    "redirectUri": "http://127.0.0.1:4387/callback",
+    "redirectUri": "http://localhost:4387/",
     "scopes": [
       "openid",
       "email",
       "profile",
       "https://www.googleapis.com/auth/gmail.readonly",
+      "https://www.googleapis.com/auth/gmail.send",
       "https://www.googleapis.com/auth/calendar"
     ]
   }

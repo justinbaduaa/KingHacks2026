@@ -11,6 +11,39 @@ Parameters:
     Type: String
     Default: "889539163514-10nft2cs9sg6r66ssrusa649qm82kajr.apps.googleusercontent.com"
     Description: Google OAuth Desktop client ID (PKCE)
+  GoogleDesktopClientSecretArn:
+    Type: String
+    Default: ""
+    Description: Secrets Manager ARN for Google OAuth client secret (optional)
+  SlackClientId:
+    Type: String
+    Default: ""
+    Description: Slack OAuth client ID (user token)
+  SlackClientSecretArn:
+    Type: String
+    Default: ""
+    Description: Secrets Manager ARN for Slack OAuth client secret
+  MicrosoftClientId:
+    Type: String
+    Default: ""
+    Description: Microsoft OAuth client ID
+  MicrosoftClientSecretArn:
+    Type: String
+    Default: ""
+    Description: Secrets Manager ARN for Microsoft OAuth client secret
+  MicrosoftTenant:
+    Type: String
+    Default: "common"
+    Description: Microsoft tenant (common, organizations, consumers, or tenant ID)
+  MicrosoftScopes:
+    Type: String
+    Default: "User.Read offline_access Mail.Send Calendars.ReadWrite"
+    Description: Microsoft OAuth scopes
+
+Conditions:
+  HasGoogleSecret: !Not [!Equals [!Ref GoogleDesktopClientSecretArn, ""]]
+  HasSlackSecret: !Not [!Equals [!Ref SlackClientSecretArn, ""]]
+  HasMicrosoftSecret: !Not [!Equals [!Ref MicrosoftClientSecretArn, ""]]
 
 Globals:
   Function:
@@ -22,6 +55,22 @@ Globals:
         TABLE_NAME: !Ref DynamoDBTable
         INTEGRATIONS_TABLE_NAME: !Ref IntegrationsTable
         GOOGLE_OAUTH_CLIENT_ID: !Ref GoogleDesktopClientId
+        GOOGLE_OAUTH_CLIENT_SECRET: !If
+          - HasGoogleSecret
+          - !Sub "{{resolve:secretsmanager:${GoogleDesktopClientSecretArn}:SecretString}}"
+          - ""
+        SLACK_CLIENT_ID: !Ref SlackClientId
+        SLACK_CLIENT_SECRET: !If
+          - HasSlackSecret
+          - !Sub "{{resolve:secretsmanager:${SlackClientSecretArn}:SecretString}}"
+          - ""
+        MICROSOFT_CLIENT_ID: !Ref MicrosoftClientId
+        MICROSOFT_CLIENT_SECRET: !If
+          - HasMicrosoftSecret
+          - !Sub "{{resolve:secretsmanager:${MicrosoftClientSecretArn}:SecretString}}"
+          - ""
+        MICROSOFT_TENANT: !Ref MicrosoftTenant
+        MICROSOFT_SCOPES: !Ref MicrosoftScopes
 
 Resources:
   BackendApi:
@@ -187,6 +236,8 @@ Resources:
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref DynamoDBTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref IntegrationsTable
         - Statement:
             - Effect: Allow
               Action:
@@ -255,12 +306,30 @@ Resources:
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref DynamoDBTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref IntegrationsTable
       Events:
         Api:
           Type: Api
           Properties:
             RestApiId: !Ref BackendApi
             Path: /node/{node_id}/complete
+            Method: POST
+
+  ExecuteNodeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handlers.execute_node.handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref IntegrationsTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BackendApi
+            Path: /node/{node_id}/execute
             Method: POST
 
   GoogleTokenFunction:
@@ -279,6 +348,22 @@ Resources:
             Path: /integrations/google/token
             Method: ANY
 
+  GoogleOAuthCodeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handlers.google_oauth_code.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref IntegrationsTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BackendApi
+            Path: /integrations/google/code
+            Method: POST
+
   GoogleGmailLabelsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -294,6 +379,154 @@ Resources:
             RestApiId: !Ref BackendApi
             Path: /integrations/google/gmail/labels
             Method: GET
+
+  GoogleAccessTokenFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handlers.google_access_token.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref IntegrationsTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BackendApi
+            Path: /integrations/google/access-token
+            Method: GET
+
+  SlackTokenFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handlers.slack_token.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref IntegrationsTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BackendApi
+            Path: /integrations/slack/token
+            Method: ANY
+
+  SlackOAuthCodeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handlers.slack_oauth_code.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref IntegrationsTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BackendApi
+            Path: /integrations/slack/code
+            Method: POST
+
+  SlackOAuthStartFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handlers.slack_oauth_start.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref IntegrationsTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BackendApi
+            Path: /integrations/slack/start
+            Method: POST
+
+  SlackOAuthCallbackFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handlers.slack_oauth_callback.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref IntegrationsTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BackendApi
+            Path: /integrations/slack/callback
+            Method: GET
+            Auth:
+              Authorizer: NONE
+
+  MicrosoftTokenFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handlers.microsoft_token.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref IntegrationsTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BackendApi
+            Path: /integrations/microsoft/token
+            Method: ANY
+
+  MicrosoftOAuthStartFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handlers.microsoft_oauth_start.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref IntegrationsTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BackendApi
+            Path: /integrations/microsoft/start
+            Method: POST
+
+  MicrosoftOAuthCallbackFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handlers.microsoft_oauth_callback.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref IntegrationsTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BackendApi
+            Path: /integrations/microsoft/callback
+            Method: GET
+            Auth:
+              Authorizer: NONE
+
+  AppleRemindersStatusFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handlers.apple_reminders_status.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref IntegrationsTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BackendApi
+            Path: /integrations/apple/reminders/status
+            Method: POST
 
   WhoAmIFunction:
     Type: AWS::Serverless::Function

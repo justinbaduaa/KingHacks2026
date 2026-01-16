@@ -114,6 +114,10 @@ DEFS = {
     "category_hint": {
         "type": "string",
         "enum": ["personal", "school", "work", "health", "finance", "idea", "other"]
+    },
+    "email_send_mode": {
+        "type": "string",
+        "enum": ["send", "draft"]
     }
 }
 
@@ -138,6 +142,18 @@ REMINDER_PAYLOAD_SCHEMA = {
             "minimum": 1,
             "maximum": 1440,
             "default": 10
+        },
+        "provider_status": {
+            "type": ["string", "null"],
+            "maxLength": 50
+        },
+        "provider_reminder_id": {
+            "type": ["string", "null"],
+            "maxLength": 200
+        },
+        "provider_error": {
+            "type": ["string", "null"],
+            "maxLength": 500
         }
     },
     "required": ["reminder_text", "when", "priority"],
@@ -247,9 +263,134 @@ CALENDAR_PLACEHOLDER_PAYLOAD_SCHEMA = {
             "type": "array",
             "items": {"type": "string", "maxLength": 100},
             "maxItems": 20
+        },
+        "provider_event_id": {
+            "type": ["string", "null"],
+            "maxLength": 200,
+            "description": "Provider event ID after execution"
+        },
+        "provider_event_link": {
+            "type": ["string", "null"],
+            "maxLength": 500,
+            "description": "Provider event link after execution"
         }
     },
     "required": ["intent", "event_title", "start"],
+    "additionalProperties": False
+}
+
+# Email payload schema
+EMAIL_PAYLOAD_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "to_name": {
+            "type": ["string", "null"],
+            "maxLength": 120,
+            "description": "Recipient name to resolve via contacts"
+        },
+        "to_email": {
+            "type": ["string", "null"],
+            "maxLength": 320,
+            "description": "Recipient email if explicitly stated"
+        },
+        "subject": {
+            "type": "string",
+            "maxLength": 200
+        },
+        "body": {
+            "type": "string",
+            "maxLength": 8000
+        },
+        "cc": {
+            "type": "array",
+            "items": {"type": "string", "maxLength": 320},
+            "maxItems": 25
+        },
+        "bcc": {
+            "type": "array",
+            "items": {"type": "string", "maxLength": 320},
+            "maxItems": 25
+        },
+        "send_mode": {"$ref": "#/$defs/email_send_mode"},
+        "provider_message_id": {
+            "type": ["string", "null"],
+            "maxLength": 200
+        },
+        "provider_thread_id": {
+            "type": ["string", "null"],
+            "maxLength": 200
+        },
+        "provider_draft_id": {
+            "type": ["string", "null"],
+            "maxLength": 200
+        },
+        "provider_status": {
+            "type": ["string", "null"],
+            "maxLength": 50
+        }
+    },
+    "required": ["subject", "body"],
+    "additionalProperties": False
+}
+
+# Microsoft email payload schema (same structure as email)
+MS_EMAIL_PAYLOAD_SCHEMA = {
+    **EMAIL_PAYLOAD_SCHEMA,
+    "properties": {
+        **EMAIL_PAYLOAD_SCHEMA["properties"],
+        "send_mode": {
+            "type": ["string", "null"],
+            "enum": ["send"],
+        },
+    },
+}
+
+# Microsoft calendar payload schema (same structure as calendar_placeholder)
+MS_CALENDAR_PAYLOAD_SCHEMA = {
+    **CALENDAR_PLACEHOLDER_PAYLOAD_SCHEMA,
+}
+# Slack message payload schema
+SLACK_MESSAGE_PAYLOAD_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "message": {
+            "type": "string",
+            "maxLength": 4000
+        },
+        "channel_name": {
+            "type": ["string", "null"],
+            "maxLength": 120
+        },
+        "channel_id": {
+            "type": ["string", "null"],
+            "maxLength": 40
+        },
+        "recipient_name": {
+            "type": ["string", "null"],
+            "maxLength": 120
+        },
+        "recipient_id": {
+            "type": ["string", "null"],
+            "maxLength": 40
+        },
+        "send_mode": {
+            "type": ["string", "null"],
+            "enum": ["send"]
+        },
+        "provider_message_ts": {
+            "type": ["string", "null"],
+            "maxLength": 50
+        },
+        "provider_channel_id": {
+            "type": ["string", "null"],
+            "maxLength": 40
+        },
+        "provider_status": {
+            "type": ["string", "null"],
+            "maxLength": 50
+        }
+    },
+    "required": ["message"],
     "additionalProperties": False
 }
 
@@ -268,7 +409,16 @@ BRAINDUMP_NODE_SCHEMA = {
         },
         "node_type": {
             "type": "string",
-            "enum": ["reminder", "todo", "note", "calendar_placeholder"]
+            "enum": [
+                "reminder",
+                "todo",
+                "note",
+                "calendar_placeholder",
+                "email",
+                "slack_message",
+                "ms_email",
+                "ms_calendar",
+            ]
         },
         "title": {
             "type": "string",
@@ -318,6 +468,10 @@ BRAINDUMP_NODE_SCHEMA = {
         "todo": TODO_PAYLOAD_SCHEMA,
         "note": NOTE_PAYLOAD_SCHEMA,
         "calendar_placeholder": CALENDAR_PLACEHOLDER_PAYLOAD_SCHEMA,
+        "email": EMAIL_PAYLOAD_SCHEMA,
+        "slack_message": SLACK_MESSAGE_PAYLOAD_SCHEMA,
+        "ms_email": MS_EMAIL_PAYLOAD_SCHEMA,
+        "ms_calendar": MS_CALENDAR_PAYLOAD_SCHEMA,
         "global_warnings": {
             "type": "array",
             "items": {"type": "string", "maxLength": 300},

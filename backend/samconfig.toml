@@ -7,7 +7,7 @@ s3_prefix = "second-brain-backend-evan"
 confirm_changeset = true
 capabilities = "CAPABILITY_NAMED_IAM"
 disable_rollback = true
-parameter_overrides = "CognitoDomainPrefix=\"kinghacks2026-evan\" GoogleDesktopClientId=\"889539163514-10nft2cs9sg6r66ssrusa649qm82kajr.apps.googleusercontent.com\""
+parameter_overrides = "CognitoDomainPrefix=\"kinghacks2026-evan\" GoogleDesktopClientId=\"889539163514-10nft2cs9sg6r66ssrusa649qm82kajr.apps.googleusercontent.com\" GoogleDesktopClientSecretArn=\"arn:aws:secretsmanager:us-east-1:244271315858:secret:second-brain-google-client-secret-F4OpJ3\" SlackClientId=\"10308493085346.10302160874339\" SlackClientSecretArn=\"arn:aws:secretsmanager:us-east-1:244271315858:secret:second-brain-slack-client-secret-dqDHt1\""
 image_repositories = []
 
 [default.global.parameters]

@@ -28,7 +28,7 @@ TOOL_BASE_PROPERTIES = {
     },
     "title": {
         "type": "string",
-        "description": "Short summary for UI display (max 120 chars)"
+        "description": "Short summary for UI display (max 120 chars). MUST be clean and simple: no time information, no location, no colons, no dashes, no prefixes like 'Reminder:' or 'Task:'. Just the core essence of what this is about."
     },
     "body": {
         "type": "string",
@@ -221,6 +221,169 @@ CALENDAR_TOOL_PROPERTIES = {
     }
 }
 
+EMAIL_TOOL_PROPERTIES = {
+    **TOOL_BASE_PROPERTIES,
+    "node_type": {
+        "type": "string",
+        "const": "email",
+        "description": "Must be 'email' for this tool"
+    },
+    "email": {
+        "type": "object",
+        "properties": {
+            "to_name": {
+                "type": "string",
+                "description": "Recipient name if the user refers to a contact"
+            },
+            "to_email": {
+                "type": "string",
+                "description": "Recipient email if the user stated it"
+            },
+            "subject": {
+                "type": "string",
+                "description": "Email subject line"
+            },
+            "body": {
+                "type": "string",
+                "description": "Email body content"
+            },
+            "cc": {
+                "type": "array",
+                "items": {"type": "string"}
+            },
+            "bcc": {
+                "type": "array",
+                "items": {"type": "string"}
+            },
+            "send_mode": {
+                "type": "string",
+                "enum": ["send", "draft"],
+                "description": "Send immediately or create a draft"
+            }
+        },
+        "required": ["subject", "body"]
+    }
+}
+
+SLACK_TOOL_PROPERTIES = {
+    **TOOL_BASE_PROPERTIES,
+    "node_type": {
+        "type": "string",
+        "const": "slack_message",
+        "description": "Must be 'slack_message' for this tool"
+    },
+    "slack_message": {
+        "type": "object",
+        "properties": {
+            "message": {
+                "type": "string",
+                "description": "Slack message text to send"
+            },
+            "channel_name": {
+                "type": "string",
+                "description": "Slack channel name if referenced (e.g. #general)"
+            },
+            "channel_id": {
+                "type": "string",
+                "description": "Slack channel ID if known"
+            },
+            "recipient_name": {
+                "type": "string",
+                "description": "Recipient name for a DM if the user names a person"
+            },
+            "recipient_id": {
+                "type": "string",
+                "description": "Slack user ID for a DM if known"
+            },
+            "send_mode": {
+                "type": "string",
+                "enum": ["send"],
+                "description": "Send immediately (only supported mode)"
+            }
+        },
+        "required": ["message"]
+    }
+}
+
+MS_EMAIL_TOOL_PROPERTIES = {
+    **TOOL_BASE_PROPERTIES,
+    "node_type": {
+        "type": "string",
+        "const": "ms_email",
+        "description": "Must be 'ms_email' for this tool"
+    },
+    "ms_email": {
+        "type": "object",
+        "properties": {
+            "to_name": {
+                "type": "string",
+                "description": "Recipient name if the user refers to a contact"
+            },
+            "to_email": {
+                "type": "string",
+                "description": "Recipient email if the user stated it"
+            },
+            "subject": {
+                "type": "string",
+                "description": "Email subject line"
+            },
+            "body": {
+                "type": "string",
+                "description": "Email body content"
+            },
+            "cc": {
+                "type": "array",
+                "items": {"type": "string"}
+            },
+            "bcc": {
+                "type": "array",
+                "items": {"type": "string"}
+            },
+            "send_mode": {
+                "type": "string",
+                "enum": ["send"],
+                "description": "Send immediately (only supported mode)"
+            }
+        },
+        "required": ["subject", "body"]
+    }
+}
+
+MS_CALENDAR_TOOL_PROPERTIES = {
+    **TOOL_BASE_PROPERTIES,
+    "node_type": {
+        "type": "string",
+        "const": "ms_calendar",
+        "description": "Must be 'ms_calendar' for this tool"
+    },
+    "ms_calendar": {
+        "type": "object",
+        "properties": {
+            "intent": {"type": "string", "description": "Description of calendar event intent"},
+            "event_title": {"type": "string", "description": "Title for the event"},
+            "start": {
+                "type": "object",
+                "properties": {
+                    "original_text": {"type": "string"},
+                    "kind": {"type": "string", "enum": ["datetime", "date", "time_window", "relative", "unspecified"]},
+                    "resolved_start_iso": {"type": "string"},
+                    "resolved_end_iso": {"type": "string"},
+                    "needs_clarification": {"type": "boolean"},
+                    "clarification_question": {"type": "string"},
+                    "resolution_notes": {"type": "string"}
+                },
+                "required": ["original_text", "kind", "needs_clarification"]
+            },
+            "start_datetime_iso": {"type": "string", "description": "ISO 8601 start datetime"},
+            "end_datetime_iso": {"type": "string", "description": "ISO 8601 end datetime"},
+            "duration_minutes": {"type": "integer"},
+            "location_text": {"type": "string"},
+            "attendees_text": {"type": "array", "items": {"type": "string"}}
+        },
+        "required": ["intent", "event_title", "start"]
+    }
+}
+
 
 def build_tools():
     """Build tool specifications for Bedrock Converse."""
@@ -278,6 +441,58 @@ def build_tools():
                     }
                 }
             }
+        },
+        {
+            "toolSpec": {
+                "name": "create_email_node",
+                "description": "Create an email node. Use when user wants to send or draft an email.",
+                "inputSchema": {
+                    "json": {
+                        "type": "object",
+                        "properties": EMAIL_TOOL_PROPERTIES,
+                        "required": base_required + ["email"]
+                    }
+                }
+            }
+        },
+        {
+            "toolSpec": {
+                "name": "create_slack_message_node",
+                "description": "Create a Slack message node. Use when user wants to send a Slack message or DM.",
+                "inputSchema": {
+                    "json": {
+                        "type": "object",
+                        "properties": SLACK_TOOL_PROPERTIES,
+                        "required": base_required + ["slack_message"]
+                    }
+                }
+            }
+        },
+        {
+            "toolSpec": {
+                "name": "create_ms_email_node",
+                "description": "Create a Microsoft Outlook email node. Use when user wants to send an Outlook email.",
+                "inputSchema": {
+                    "json": {
+                        "type": "object",
+                        "properties": MS_EMAIL_TOOL_PROPERTIES,
+                        "required": base_required + ["ms_email"]
+                    }
+                }
+            }
+        },
+        {
+            "toolSpec": {
+                "name": "create_ms_calendar_node",
+                "description": "Create a Microsoft Calendar event node. Use when user wants to schedule in Outlook/Microsoft Calendar.",
+                "inputSchema": {
+                    "json": {
+                        "type": "object",
+                        "properties": MS_CALENDAR_TOOL_PROPERTIES,
+                        "required": base_required + ["ms_calendar"]
+                    }
+                }
+            }
         }
     ]
 
@@ -290,15 +505,20 @@ Analyze the transcript and create one or more nodes by calling the tools below.
 - create_todo_node: For tasks/action items ("I need to...", "add to my list...")
 - create_note_node: For information capture, thoughts, ideas (no specific action)
 - create_calendar_placeholder_node: For scheduling events/meetings ("schedule...", "set up meeting...")
+- create_email_node: For sending emails ("email Sarah...", "send a note to Evan...")
+- create_slack_message_node: For sending Slack messages ("Slack Evan...", "message #general...")
+- create_ms_email_node: For Outlook email ("Outlook email Evan...", "send via Microsoft")
+- create_ms_calendar_node: For Microsoft Calendar ("schedule in Outlook", "add to Microsoft calendar")
 
 ## Critical Rules
 1. You MUST call at least one tool. Do not respond with text.
 2. If the transcript includes multiple distinct intents, call multiple tools (one per node).
 3. All timestamps MUST be ISO 8601 with the same timezone offset as user_time_iso. Do not convert times to UTC.
-4. Include 1-5 evidence quotes copied EXACTLY from the transcript
-5. Set confidence 0.0-1.0 honestly. Lower if ambiguous.
-6. Only use location if transcript implies it ("here", "near me", "when I get there")
-7. Set needs_clarification=true if time is ambiguous, with a clarification_question
+4. The title must be content-only. NEVER include time, date, location, or type prefixes like "Reminder:", "Note:", or "Todo:".
+5. Include 1-5 evidence quotes copied EXACTLY from the transcript
+6. Set confidence 0.0-1.0 honestly. Lower if ambiguous.
+7. Only use location if transcript implies it ("here", "near me", "when I get there")
+8. Set needs_clarification=true if time is ambiguous, with a clarification_question
 
 ## Time Resolution Rules
 Assume the user's timezone is the offset in user_time_iso. Keep times as spoken in that timezone:
@@ -317,6 +537,10 @@ Assume the user's timezone is the offset in user_time_iso. Keep times as spoken 
 - TODO: User describes a task to complete. May have due date or not. Action-oriented.
 - NOTE: User is capturing information, thoughts, or ideas. No specific action required.
 - CALENDAR: User wants to schedule an event, meeting, appointment, demo, or block time. Any "schedule/set up/book/plan" intent with a time should be a calendar_placeholder even if the date/time is ambiguous.
+- EMAIL: User wants to send or draft an email/message to someone.
+- SLACK: User wants to send a Slack message to a channel or a person.
+- MS_EMAIL: User wants to send an Outlook/Microsoft email.
+- MS_CALENDAR: User wants to schedule in Microsoft/Outlook Calendar.
 
 ## Calendar Routing Rules (Important)
 - If the user is scheduling or attending an event at a specific time or date, use create_calendar_placeholder_node.
@@ -326,7 +550,13 @@ Assume the user's timezone is the offset in user_time_iso. Keep times as spoken 
 ## Output Requirements
 - schema_version: must be "braindump.node.v1"
 - node_type: must match the tool you're calling
-- title: Short, clear UI label (max 120 chars)
+- title: Short, clear UI label (max 120 chars). CRITICAL: The title must be clean and simple:
+  * NEVER include time information (no "at 3pm", "tomorrow", "in 2 hours", etc.)
+  * NEVER include location information (no "at the office", "near me", etc.)
+  * NEVER use colons or dashes (no "Reminder:", "Task -", etc.)
+  * NEVER use prefixes like "Reminder:", "Todo:", "Note:", "Calendar:"
+  * Just the core essence: "Call mom", "Buy groceries", "Team meeting", "Project update"
+  * Time and location go in their respective fields, NOT in the title
 - body: Cleaned, coherent version of intent (max 4000 chars)
 - tags: Relevant keywords (max 12 tags)
 - status: Usually "active" for new nodes
@@ -336,6 +566,12 @@ Assume the user's timezone is the offset in user_time_iso. Keep times as spoken 
 - time_interpretation: How you resolved any time references
 - global_warnings: Any concerns about interpretation
 - All datetime strings must include the same offset as user_time_iso
+- If contacts are provided in the user payload, use them to resolve recipient names for email nodes.
+- contacts (if present) is a list of objects with fields: name, email.
+- For email nodes, default send_mode to "send" unless the user asks to draft.
+- If slack_targets are provided in the user payload, use them to resolve channel/user names for Slack nodes.
+- slack_targets (if present) has channels and users with name and id fields.
+- If the user explicitly mentions Outlook/Microsoft for email or calendar, use the MS tools. Otherwise use the standard email/calendar tools.
 
 ## Examples
 
@@ -343,6 +579,7 @@ Assume the user's timezone is the offset in user_time_iso. Keep times as spoken 
 Transcript: "remind me to call mom tomorrow at 7"
 user_time_iso: "2026-01-12T17:00:00-05:00"
 → Call create_reminder_node with:
+- title: "Call mom" (NOT "Reminder: Call mom tomorrow at 7" or "Call mom at 7")
 - trigger_datetime_iso: "2026-01-13T07:00:00-05:00" (tomorrow = Jan 13, at 7:00)
 - Note: "7" likely means 7 PM given context, but 07:00 is ambiguous
 - If unsure AM/PM: needs_clarification=true, ask "Did you mean 7 AM or 7 PM?"
@@ -350,6 +587,7 @@ user_time_iso: "2026-01-12T17:00:00-05:00"
 ### Example 2: Todo without due date
 Transcript: "I need to buy groceries and pick up dry cleaning"
 → Call create_todo_node with:
+- title: "Buy groceries and pick up dry cleaning" (NOT "Todo: Buy groceries" or "Task - Buy groceries")
 - task: "Buy groceries and pick up dry cleaning"
 - due.kind: "unspecified"
 - due.needs_clarification: false (no time mentioned is okay for todos)
@@ -359,6 +597,7 @@ Transcript: "I need to buy groceries and pick up dry cleaning"
 Transcript: "set up a meeting with Sam next week"
 user_time_iso: "2026-01-12T17:00:00-05:00"
 → Call create_calendar_placeholder_node with:
+- title: "Meeting with Sam" (NOT "Calendar: Meeting with Sam next week" or "Meeting with Sam - next week")
 - event_title: "Meeting with Sam"
 - start.kind: "relative"
 - start.original_text: "next week"

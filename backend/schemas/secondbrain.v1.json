@@ -116,6 +116,10 @@
       "type": "string",
       "enum": ["personal", "school", "work", "health", "finance", "idea", "other"]
     },
+    "email_send_mode": {
+      "type": "string",
+      "enum": ["send", "draft"]
+    },
     "reminder_payload": {
       "type": "object",
       "properties": {
@@ -136,6 +140,18 @@
           "minimum": 1,
           "maximum": 1440,
           "default": 10
+        },
+        "provider_status": {
+          "type": ["string", "null"],
+          "maxLength": 50
+        },
+        "provider_reminder_id": {
+          "type": ["string", "null"],
+          "maxLength": 200
+        },
+        "provider_error": {
+          "type": ["string", "null"],
+          "maxLength": 500
         }
       },
       "required": ["reminder_text", "when", "priority"],
@@ -239,9 +255,231 @@
           "type": "array",
           "items": { "type": "string", "maxLength": 100 },
           "maxItems": 20
+        },
+        "provider_event_id": {
+          "type": ["string", "null"],
+          "maxLength": 200,
+          "description": "Provider event ID after execution"
+        },
+        "provider_event_link": {
+          "type": ["string", "null"],
+          "maxLength": 500,
+          "description": "Provider event link after execution"
         }
       },
       "required": ["intent", "event_title", "start"],
+      "additionalProperties": false
+    },
+    "email_payload": {
+      "type": "object",
+      "properties": {
+        "to_name": {
+          "type": ["string", "null"],
+          "maxLength": 120,
+          "description": "Recipient name to resolve via contacts"
+        },
+        "to_email": {
+          "type": ["string", "null"],
+          "maxLength": 320,
+          "description": "Recipient email if explicitly stated"
+        },
+        "subject": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "body": {
+          "type": "string",
+          "maxLength": 8000
+        },
+        "cc": {
+          "type": "array",
+          "items": { "type": "string", "maxLength": 320 },
+          "maxItems": 25
+        },
+        "bcc": {
+          "type": "array",
+          "items": { "type": "string", "maxLength": 320 },
+          "maxItems": 25
+        },
+        "send_mode": {
+          "type": ["string", "null"],
+          "enum": ["send"]
+        },
+        "provider_message_id": {
+          "type": ["string", "null"],
+          "maxLength": 200
+        },
+        "provider_thread_id": {
+          "type": ["string", "null"],
+          "maxLength": 200
+        },
+        "provider_draft_id": {
+          "type": ["string", "null"],
+          "maxLength": 200
+        },
+        "provider_status": {
+          "type": ["string", "null"],
+          "maxLength": 50
+        }
+      },
+      "required": ["subject", "body"],
+      "additionalProperties": false
+    },
+    "ms_email_payload": {
+      "type": "object",
+      "properties": {
+        "to_name": {
+          "type": ["string", "null"],
+          "maxLength": 120,
+          "description": "Recipient name to resolve via contacts"
+        },
+        "to_email": {
+          "type": ["string", "null"],
+          "maxLength": 320,
+          "description": "Recipient email if explicitly stated"
+        },
+        "subject": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "body": {
+          "type": "string",
+          "maxLength": 8000
+        },
+        "cc": {
+          "type": "array",
+          "items": { "type": "string", "maxLength": 320 },
+          "maxItems": 25
+        },
+        "bcc": {
+          "type": "array",
+          "items": { "type": "string", "maxLength": 320 },
+          "maxItems": 25
+        },
+        "send_mode": { "$ref": "#/$defs/email_send_mode" },
+        "provider_message_id": {
+          "type": ["string", "null"],
+          "maxLength": 200
+        },
+        "provider_thread_id": {
+          "type": ["string", "null"],
+          "maxLength": 200
+        },
+        "provider_draft_id": {
+          "type": ["string", "null"],
+          "maxLength": 200
+        },
+        "provider_status": {
+          "type": ["string", "null"],
+          "maxLength": 50
+        }
+      },
+      "required": ["subject", "body"],
+      "additionalProperties": false
+    },
+    "ms_calendar_payload": {
+      "type": "object",
+      "properties": {
+        "intent": {
+          "type": "string",
+          "maxLength": 4000,
+          "description": "Description of calendar event intent"
+        },
+        "event_title": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Title for the event"
+        },
+        "start": {
+          "type": "object",
+          "properties": {
+            "original_text": { "type": "string" },
+            "kind": { "type": "string", "enum": ["datetime", "date", "time_window", "relative", "unspecified"] },
+            "resolved_start_iso": { "type": "string" },
+            "resolved_end_iso": { "type": "string" },
+            "needs_clarification": { "type": "boolean" },
+            "clarification_question": { "type": "string" },
+            "resolution_notes": { "type": "string" }
+          },
+          "required": ["original_text", "kind", "needs_clarification"]
+        },
+        "start_datetime_iso": {
+          "type": ["string", "null"],
+          "description": "ISO 8601 start datetime"
+        },
+        "end_datetime_iso": {
+          "type": ["string", "null"],
+          "description": "ISO 8601 end datetime"
+        },
+        "duration_minutes": {
+          "type": ["integer", "null"],
+          "minimum": 1,
+          "maximum": 10080
+        },
+        "location_text": {
+          "type": ["string", "null"],
+          "maxLength": 200
+        },
+        "attendees_text": {
+          "type": "array",
+          "items": { "type": "string", "maxLength": 100 },
+          "maxItems": 20
+        },
+        "provider_event_id": {
+          "type": ["string", "null"],
+          "maxLength": 200,
+          "description": "Provider event ID after execution"
+        },
+        "provider_event_link": {
+          "type": ["string", "null"],
+          "maxLength": 500,
+          "description": "Provider event link after execution"
+        }
+      },
+      "required": ["intent", "event_title", "start"],
+      "additionalProperties": false
+    },
+    "slack_message_payload": {
+      "type": "object",
+      "properties": {
+        "message": {
+          "type": "string",
+          "maxLength": 4000
+        },
+        "channel_name": {
+          "type": ["string", "null"],
+          "maxLength": 120
+        },
+        "channel_id": {
+          "type": ["string", "null"],
+          "maxLength": 40
+        },
+        "recipient_name": {
+          "type": ["string", "null"],
+          "maxLength": 120
+        },
+        "recipient_id": {
+          "type": ["string", "null"],
+          "maxLength": 40
+        },
+        "send_mode": {
+          "type": ["string", "null"],
+          "enum": ["send"]
+        },
+        "provider_message_ts": {
+          "type": ["string", "null"],
+          "maxLength": 50
+        },
+        "provider_channel_id": {
+          "type": ["string", "null"],
+          "maxLength": 40
+        },
+        "provider_status": {
+          "type": ["string", "null"],
+          "maxLength": 50
+        }
+      },
+      "required": ["message"],
       "additionalProperties": false
     }
   },
@@ -252,7 +490,7 @@
     },
     "node_type": {
       "type": "string",
-      "enum": ["reminder", "todo", "note", "calendar_placeholder"]
+      "enum": ["reminder", "todo", "note", "calendar_placeholder", "email", "slack_message", "ms_email", "ms_calendar"]
     },
     "title": {
       "type": "string",
@@ -302,6 +540,10 @@
     "todo": { "$ref": "#/$defs/todo_payload" },
     "note": { "$ref": "#/$defs/note_payload" },
     "calendar_placeholder": { "$ref": "#/$defs/calendar_placeholder_payload" },
+    "email": { "$ref": "#/$defs/email_payload" },
+    "slack_message": { "$ref": "#/$defs/slack_message_payload" },
+    "ms_email": { "$ref": "#/$defs/ms_email_payload" },
+    "ms_calendar": { "$ref": "#/$defs/ms_calendar_payload" },
     "global_warnings": {
       "type": "array",
       "items": { "type": "string", "maxLength": 300 },

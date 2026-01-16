@@ -170,6 +170,13 @@ function getIconForType(type) {
         <line x1="8" y1="2" x2="8" y2="6"/>
         <line x1="3" y1="10" x2="21" y2="10"/>
       </svg>`;
+
+    case 'email':
+      // Email/envelope icon
+      return `<svg viewBox="0 0 24 24">
+        <rect x="2" y="4" width="20" height="16" rx="2" ry="2"/>
+        <path d="M22 6L12 13 2 6"/>
+      </svg>`;
     
     case 'todo':
     case 'task':
@@ -259,6 +266,16 @@ function renderCards(tasks) {
     card.dataset.index = index;
     card.dataset.type = task.type.toLowerCase();
     if (index === tasks.length - 1) card.classList.add('last-card');
+    const dateTimeLabel = task.dateStr && task.timeStr
+      ? `${task.dateStr} • ${task.timeStr}`
+      : (task.dateStr || task.timeStr || '');
+    const dateTimeHtml = dateTimeLabel
+      ? `<div class="action-date-time">${dateTimeLabel}</div>`
+      : '';
+    const locationHtml = task.locationStr
+      ? `<span class="location-indicator">${task.locationStr}</span>`
+      : '';
+    
     card.innerHTML = `
       <div class="card-header">
         <span class="card-pill ${task.type.toLowerCase()}">${task.type}</span>
@@ -492,7 +509,8 @@ async function approveCard(card, index) {
       if (result.success) {
         console.log(`[COMPLETE_NODE] Successfully saved node ${task.nodeId}`);
       } else {
-        console.error(`[COMPLETE_NODE] Failed to save node:`, result.error);
+        const errorMessage = result.error || result.body?.error || result.body?.message || "unknown_error";
+        console.error(`[COMPLETE_NODE] Failed to save node:`, errorMessage);
       }
     } catch (err) {
       console.error(`[COMPLETE_NODE] Error saving node:`, err);
