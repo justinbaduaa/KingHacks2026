@@ -198,6 +198,30 @@ function renderCards(container, items, countEl, emptyLabel) {
   }
 }
 
+function renderBoardFromCards(cards) {
+  const pendingCards = [];
+  const reminderCards = [];
+  const noteCards = [];
+  const calendarCards = [];
+
+  cards.forEach((card) => {
+    if (card.type === 'reminder') {
+      reminderCards.push(card);
+    } else if (card.type === 'note' || card.type === 'email') {
+      noteCards.push(card);
+    } else if (card.type === 'calendar') {
+      calendarCards.push(card);
+    } else {
+      pendingCards.push(card);
+    }
+  });
+
+  renderCards(pendingList, pendingCards, pendingCount, 'No tasks yet');
+  renderCards(remindersList, reminderCards, remindersCount, 'No reminders yet');
+  renderCards(notesList, noteCards, notesCount, 'No notes yet');
+  renderCards(calendarList, calendarCards, calendarCount, 'No calendar items yet');
+}
+
 function renderActivity(container, activityData) {
   if (!container) return;
   
@@ -1441,27 +1465,7 @@ async function loadDashboardData() {
     const nodes = result.body?.nodes || [];
     const cards = nodes.map(deriveCardFromNode);
 
-    const pendingCards = [];
-    const reminderCards = [];
-    const noteCards = [];
-    const calendarCards = [];
-
-    cards.forEach((card) => {
-      if (card.type === 'reminder') {
-        reminderCards.push(card);
-      } else if (card.type === 'note' || card.type === 'email') {
-        noteCards.push(card);
-      } else if (card.type === 'calendar') {
-        calendarCards.push(card);
-      } else {
-        pendingCards.push(card);
-      }
-    });
-
-    renderCards(pendingList, pendingCards, pendingCount, 'No tasks yet');
-    renderCards(remindersList, reminderCards, remindersCount, 'No reminders yet');
-    renderCards(notesList, noteCards, notesCount, 'No notes yet');
-    renderCards(calendarList, calendarCards, calendarCount, 'No calendar items yet');
+    renderBoardFromCards(cards);
     renderActivity(activityTimeline, buildActivityFromNodes(nodes));
     updateStats(nodes);
     
@@ -1489,12 +1493,13 @@ function setupDeleteHandlers() {
     e.preventDefault();
     e.stopPropagation();
 
-    const card = actionBtn.closest('.kanban-card');
+    const card = actionBtn.closest('.kanban-card') || actionBtn.closest('.list-item');
     // Also handle canvas node deletion via custom event or similar if needed
     // For now we just focus on existing UI
     if (!card) return;
 
     const nodeId = card.dataset.nodeId;
+    const cardId = nodeId || card.dataset.id;
     const action = actionBtn.dataset.action;
 
     if (action === 'send-reminder') {
@@ -1507,67 +1512,31 @@ function setupDeleteHandlers() {
       return;
     }
 
-    if (!nodeId || !window.braindump?.deleteNode) {
-      return;
-    }
-
-    const existingConfirm = card.querySelector('.card-confirm');
-    if (existingConfirm) {
-      existingConfirm.remove();
-      return;
-    }
-
-    const confirmEl = document.createElement('div');
-    confirmEl.className = 'card-confirm';
-    confirmEl.innerHTML = `
-      <span>Delete this item?</span>
-      <div class="card-confirm-buttons">
-        <button type="button" class="confirm-action" data-confirm="delete">Delete</button>
-        <button type="button" class="confirm-cancel" data-confirm="cancel">Cancel</button>
-      </div>
-    `;
-    card.appendChild(confirmEl);
-    confirmEl.querySelector('.confirm-cancel')?.focus();
-  });
-
-  document.addEventListener('click', async (e) => {
-    const confirmBtn = e.target.closest('[data-confirm]');
-    if (!confirmBtn) return;
-
-    e.preventDefault();
-    e.stopPropagation();
-
-    const card = confirmBtn.closest('.kanban-card');
-    if (!card) return;
-
-    const confirmBox = card.querySelector('.card-confirm');
-    const nodeId = card.dataset.nodeId;
-    if (!confirmBox) return;
-
-    if (confirmBtn.dataset.confirm === 'cancel') {
-      confirmBox.remove();
-      return;
-    }
-
-    if (!nodeId || !window.braindump?.deleteNode) {
-      return;
-    }
-
-    const result = await window.braindump.deleteNode(nodeId);
-    if (!result.success) {
-      console.error('[DASHBOARD] Delete failed:', result.error || result.body);
+    if (action !== 'delete') {
       return;
     }
 
     card.remove();
-    loadDashboardData();
-  });
+    if (cardId) {
+      allCards = allCards.filter((item) => item.nodeId !== cardId && item.id !== cardId);
+      renderBoardFromCards(allCards);
+      if (currentTab === 'list') {
+        renderListView();
+      }
+    }
 
-  document.addEventListener('click', (e) => {
-    const confirmBox = document.querySelector('.card-confirm');
-    if (!confirmBox) return;
-    if (e.target.closest('.kanban-card')) return;
-    confirmBox.remove();
+    if (!nodeId || !window.braindump?.deleteNode) {
+      return;
+    }
+
+    try {
+      const result = await window.braindump.deleteNode(nodeId);
+      if (!result.success) {
+        console.error('[DASHBOARD] Delete failed:', result.error || result.body);
+      }
+    } catch (err) {
+      console.error('[DASHBOARD] Delete failed:', err);
+    }
   });
 }
 

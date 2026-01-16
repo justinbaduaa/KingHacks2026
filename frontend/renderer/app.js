@@ -487,19 +487,7 @@ function createGhostTrail(card) {
   setTimeout(() => ghost.remove(), 500);
 }
 
-// Approve a card (now with real task data)
-async function approveCard(card, index) {
-  if (!card || card.classList.contains('approved')) return;
-  
-  const task = currentTasks[index];
-  console.log(`[APPROVED] Task ${index}: ${task?.text || 'unknown'}`);
-  console.log(`[APPROVED] Task object:`, task);
-  console.log(`[APPROVED] Has fullNode:`, !!task?.fullNode);
-  console.log(`[APPROVED] Has nodeId:`, !!task?.nodeId);
-  console.log(`[APPROVED] nodeId value:`, task?.nodeId);
-  console.log(`[APPROVED] fullNode keys:`, task?.fullNode ? Object.keys(task.fullNode) : 'none');
-  
-  // Send node to backend to save to database
+async function completeNodeInBackground(task) {
   if (task?.fullNode && task?.nodeId) {
     try {
       console.log(`[COMPLETE_NODE] Sending node ${task.nodeId} to backend...`);
@@ -522,6 +510,19 @@ async function approveCard(card, index) {
     console.warn(`[COMPLETE_NODE] task.fullNode:`, task?.fullNode);
     console.warn(`[COMPLETE_NODE] task.nodeId:`, task?.nodeId);
   }
+}
+
+// Approve a card (now with real task data)
+async function approveCard(card, index) {
+  if (!card || card.classList.contains('approved')) return;
+  
+  const task = currentTasks[index];
+  console.log(`[APPROVED] Task ${index}: ${task?.text || 'unknown'}`);
+  console.log(`[APPROVED] Task object:`, task);
+  console.log(`[APPROVED] Has fullNode:`, !!task?.fullNode);
+  console.log(`[APPROVED] Has nodeId:`, !!task?.nodeId);
+  console.log(`[APPROVED] nodeId value:`, task?.nodeId);
+  console.log(`[APPROVED] fullNode keys:`, task?.fullNode ? Object.keys(task.fullNode) : 'none');
   
   // Check if this is the last remaining card
   const remainingCards = cardsWrapper.querySelectorAll('.action-card:not(.approved):not(.dismissed)');
@@ -558,6 +559,9 @@ async function approveCard(card, index) {
   if (!isLastCard) {
     selectNextCard();
   }
+
+  // Fire-and-forget backend update so UI stays snappy.
+  void completeNodeInBackground(task);
 }
 
 // Dismiss a card (now with real task data)
