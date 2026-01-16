@@ -561,6 +561,8 @@ let brainControls = null;
 let brainObject = null;
 let canvasInited = false;
 let animationId = null;
+let focusAnimationId = null;
+let currentlyFocusedNode = null;
 
 function initCanvas() {
   if (canvasInited) return;
@@ -663,6 +665,9 @@ function initCanvas() {
       }
     });
   }
+
+  // Setup raycasting for hover and click
+  setupCanvasInteraction(container);
   
   canvasInited = true;
   
@@ -673,6 +678,326 @@ function initCanvas() {
 
   // Start animation loop
   animateBrain();
+}
+
+// Raycaster for mouse interaction
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+
+function setupCanvasInteraction(container) {
+  const tooltip = document.getElementById('canvas-tooltip');
+  const nodePanel = document.getElementById('canvas-node-panel');
+  const panelContent = document.getElementById('panel-content');
+  const panelCloseBtn = document.getElementById('panel-close-btn');
+
+  // Close panel button
+  if (panelCloseBtn) {
+    panelCloseBtn.addEventListener('click', () => {
+      nodePanel.classList.remove('visible');
+      
+      // Reset focused node highlighting
+      if (currentlyFocusedNode) {
+        if (currentlyFocusedNode.material) {
+          currentlyFocusedNode.material.emissiveIntensity = 0.3;
+        }
+        currentlyFocusedNode.scale.set(1, 1, 1);
+        currentlyFocusedNode = null;
+      }
+      
+      // Resume auto-rotation
+      if (brainControls) {
+        brainControls.autoRotate = true;
+      }
+    });
+  }
+
+  // Track hovered object for highlighting
+  let hoveredObject = null;
+  let originalEmissiveIntensity = 0.3;
+
+  // Mouse move for hover
+  container.addEventListener('mousemove', (event) => {
+    const rect = container.getBoundingClientRect();
+    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+    raycaster.setFromCamera(mouse, brainCamera);
+    const spheres = nodeMeshes.filter(m => m.geometry && m.geometry.type === 'SphereGeometry');
+    const intersects = raycaster.intersectObjects(spheres);
+
+    // Reset previous hovered object
+    if (hoveredObject && hoveredObject.material) {
+      hoveredObject.material.emissiveIntensity = originalEmissiveIntensity;
+      hoveredObject.scale.set(1, 1, 1);
+    }
+
+    if (intersects.length > 0) {
+      const obj = intersects[0].object;
+      const card = obj.userData.card;
+      if (card) {
+        // Show tooltip
+        tooltip.textContent = card.title;
+        tooltip.style.left = (event.clientX - rect.left + 15) + 'px';
+        tooltip.style.top = (event.clientY - rect.top - 10) + 'px';
+        tooltip.classList.add('visible');
+        container.style.cursor = 'pointer';
+
+        // Stop auto-rotation when hovering over a node
+        if (brainControls) {
+          brainControls.autoRotate = false;
+        }
+
+        // Highlight the node
+        hoveredObject = obj;
+        if (obj.material) {
+          obj.material.emissiveIntensity = 0.8;
+        }
+        obj.scale.set(1.3, 1.3, 1.3);
+      }
+    } else {
+      tooltip.classList.remove('visible');
+      container.style.cursor = 'grab';
+      hoveredObject = null;
+
+      // Resume auto-rotation when not hovering
+      if (brainControls) {
+        brainControls.autoRotate = true;
+      }
+    }
+  });
+
+  // Mouse leave - resume rotation
+  container.addEventListener('mouseleave', () => {
+    tooltip.classList.remove('visible');
+    if (hoveredObject && hoveredObject.material) {
+      hoveredObject.material.emissiveIntensity = originalEmissiveIntensity;
+      hoveredObject.scale.set(1, 1, 1);
+    }
+    hoveredObject = null;
+    if (brainControls) {
+      brainControls.autoRotate = true;
+    }
+  });
+
+  // Click for detail panel and focus on node
+  container.addEventListener('click', (event) => {
+    const rect = container.getBoundingClientRect();
+    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+    raycaster.setFromCamera(mouse, brainCamera);
+    const spheres = nodeMeshes.filter(m => m.geometry && m.geometry.type === 'SphereGeometry');
+    const intersects = raycaster.intersectObjects(spheres);
+
+    if (intersects.length > 0) {
+      const obj = intersects[0].object;
+      const card = obj.userData.card;
+      if (card) {
+        showNodePanel(card, panelContent, nodePanel);
+        focusOnNode(obj);
+      }
+    }
+  });
+}
+
+// Animate camera to focus on a specific node
+function focusOnNode(nodeMesh) {
+  if (!brainCamera || !brainControls) return;
+
+  // Stop auto-rotation during focus
+  brainControls.autoRotate = false;
+
+  // Cancel any existing focus animation
+  if (focusAnimationId) {
+    cancelAnimationFrame(focusAnimationId);
+  }
+
+  const nodePosition = nodeMesh.position.clone();
+  
+  // Calculate target camera position - place camera looking at the node from optimal distance
+  const cameraDistance = 6;
+  const direction = nodePosition.clone().normalize();
+  const targetCameraPosition = nodePosition.clone().add(direction.multiplyScalar(cameraDistance));
+  
+  // Ensure camera is at a reasonable distance
+  const minDist = 8;
+  if (targetCameraPosition.length() < minDist) {
+    targetCameraPosition.normalize().multiplyScalar(minDist);
+  }
+
+  // Store initial camera state
+  const startPosition = brainCamera.position.clone();
+  const startTarget = brainControls.target.clone();
+  const targetLookAt = nodePosition.clone();
+
+  // Animation parameters
+  const duration = 800; // ms
+  const startTime = performance.now();
+
+  function animateFocus() {
+    const elapsed = performance.now() - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+    
+    // Smooth easing function (ease-out cubic)
+    const eased = 1 - Math.pow(1 - progress, 3);
+
+    // Interpolate camera position
+    brainCamera.position.lerpVectors(startPosition, targetCameraPosition, eased);
+    
+    // Interpolate look-at target
+    brainControls.target.lerpVectors(startTarget, targetLookAt, eased);
+    brainControls.update();
+
+    if (progress < 1) {
+      focusAnimationId = requestAnimationFrame(animateFocus);
+    } else {
+      focusAnimationId = null;
+      // Keep auto-rotate off while panel is visible
+    }
+  }
+
+  animateFocus();
+
+  // Highlight the focused node
+  highlightFocusedNode(nodeMesh);
+}
+
+// Highlight the focused node visually
+function highlightFocusedNode(nodeMesh) {
+  // Reset previous focused node
+  if (currentlyFocusedNode && currentlyFocusedNode !== nodeMesh) {
+    if (currentlyFocusedNode.material) {
+      currentlyFocusedNode.material.emissiveIntensity = 0.3;
+    }
+    currentlyFocusedNode.scale.set(1, 1, 1);
+  }
+
+  // Highlight new focused node
+  currentlyFocusedNode = nodeMesh;
+  if (nodeMesh.material) {
+    nodeMesh.material.emissiveIntensity = 1.0;
+  }
+  nodeMesh.scale.set(1.5, 1.5, 1.5);
+}
+
+function showNodePanel(card, panelContent, nodePanel) {
+  const typeLabel = card.type.charAt(0).toUpperCase() + card.type.slice(1);
+  const description = card.description || card.body || '';
+
+  // Remove any previous type classes and add current type
+  nodePanel.classList.remove('task', 'reminder', 'note', 'calendar');
+  nodePanel.classList.add(card.type);
+
+  // Generate content based on card type
+  let actionButtons = '';
+  let metaContent = '';
+
+  if (card.type === 'reminder') {
+    actionButtons = `
+      <div class="panel-actions">
+        <button class="panel-action-btn panel-send" type="button" title="Send to Apple Reminders">
+          <i data-feather="send"></i>
+        </button>
+        <button class="panel-action-btn panel-close" type="button" id="panel-close-inner">
+          <i data-feather="x"></i>
+        </button>
+      </div>
+    `;
+    metaContent = `
+      <div class="panel-meta-row">
+        <span class="panel-date">${escapeHtml(card.dateLabel || '')}</span>
+        <span class="panel-time">${escapeHtml(card.timeLabel || '')}</span>
+      </div>
+    `;
+  } else if (card.type === 'calendar') {
+    actionButtons = `
+      <div class="panel-actions">
+        <button class="panel-action-btn panel-send" type="button" title="Send to Calendar">
+          <i data-feather="send"></i>
+        </button>
+        <button class="panel-action-btn panel-close" type="button" id="panel-close-inner">
+          <i data-feather="x"></i>
+        </button>
+      </div>
+    `;
+    metaContent = `
+      <div class="panel-detail-row">
+        <span class="detail-label">Location</span>
+        <span class="detail-value">${escapeHtml(card.locationLabel || 'TBD')}</span>
+      </div>
+      <div class="panel-detail-row">
+        <span class="detail-label">Date</span>
+        <span class="detail-value">${escapeHtml(card.dateLabel || '')}</span>
+      </div>
+      <div class="panel-detail-row">
+        <span class="detail-label">Time</span>
+        <span class="detail-value">${escapeHtml(card.timeLabel || '')}</span>
+      </div>
+    `;
+  } else if (card.type === 'task') {
+    actionButtons = `
+      <div class="panel-actions">
+        <button class="panel-action-btn panel-close" type="button" id="panel-close-inner">
+          <i data-feather="x"></i>
+        </button>
+      </div>
+    `;
+    metaContent = `
+      <div class="panel-meta-row">
+        <span class="panel-date">${escapeHtml(card.dateLabel || '')}</span>
+        <span class="panel-time">${escapeHtml(card.timeLabel || '')}</span>
+      </div>
+    `;
+  } else {
+    // Note type
+    actionButtons = `
+      <div class="panel-actions">
+        <button class="panel-action-btn panel-close" type="button" id="panel-close-inner">
+          <i data-feather="x"></i>
+        </button>
+      </div>
+    `;
+    metaContent = description ? `<p class="panel-desc">${escapeHtml(description)}</p>` : '';
+  }
+
+  panelContent.innerHTML = `
+    ${actionButtons}
+    <div class="panel-header">
+      <span class="panel-type ${card.type}">${typeLabel}</span>
+    </div>
+    <h3 class="panel-title">${escapeHtml(card.title)}</h3>
+    ${card.type !== 'note' && description ? `<p class="panel-desc">${escapeHtml(description)}</p>` : ''}
+    ${metaContent}
+  `;
+
+  nodePanel.classList.add('visible');
+
+  // Bind close button inside panel
+  const closeInner = document.getElementById('panel-close-inner');
+  if (closeInner) {
+    closeInner.addEventListener('click', () => {
+      nodePanel.classList.remove('visible');
+      
+      // Reset focused node highlighting
+      if (currentlyFocusedNode) {
+        if (currentlyFocusedNode.material) {
+          currentlyFocusedNode.material.emissiveIntensity = 0.3;
+        }
+        currentlyFocusedNode.scale.set(1, 1, 1);
+        currentlyFocusedNode = null;
+      }
+      
+      // Resume auto-rotation
+      if (brainControls) {
+        brainControls.autoRotate = true;
+      }
+    });
+  }
+
+  // Re-render feather icons
+  if (typeof feather !== 'undefined') {
+    feather.replace();
+  }
 }
 
 function onCanvasResize() {
@@ -724,59 +1049,98 @@ function updateCanvas() {
   });
   nodeMeshes = [];
 
-  // Add spheres for each card orbiting the brain
-  const radius = 8; // Orbit radius around brain
-  const nodeSize = 0.3;
-  
-  allCards.forEach((card, index) => {
-    // Determine color by type
-    let color = 0x3B82F6; // blue default
-    if (card.type === 'task') color = 0x22C55E;
-    if (card.type === 'reminder') color = 0xF97316;
-    if (card.type === 'note') color = 0x8B5CF6;
-    if (card.type === 'calendar') color = 0x14B8A6;
+  // Group cards by type
+  const groupedCards = {
+    task: [],
+    reminder: [],
+    note: [],
+    calendar: []
+  };
 
-    // Create sphere geometry
-    const geometry = new THREE.SphereGeometry(nodeSize, 16, 16);
-    const material = new THREE.MeshStandardMaterial({
-      color: color,
-      emissive: color,
-      emissiveIntensity: 0.3,
-      roughness: 0.5,
-      metalness: 0.2
-    });
-    const sphere = new THREE.Mesh(geometry, material);
-
-    // Position in a spiral pattern around the brain
-    const angle = (index / allCards.length) * Math.PI * 2;
-    const heightOffset = (index / allCards.length - 0.5) * 4; // Spread vertically
-    sphere.position.x = Math.cos(angle) * radius;
-    sphere.position.y = heightOffset;
-    sphere.position.z = Math.sin(angle) * radius;
-
-    // Store card data for potential interaction
-    sphere.userData = { card: card };
-
-    brainScene.add(sphere);
-    nodeMeshes.push(sphere);
-
-    // Create line from brain center to node
-    const lineMaterial = new THREE.LineBasicMaterial({ 
-      color: 0xE2E8F0, 
-      opacity: 0.5, 
-      transparent: true 
-    });
-    const points = [
-      new THREE.Vector3(0, 0, 0),
-      sphere.position.clone()
-    ];
-    const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
-    const line = new THREE.Line(lineGeometry, lineMaterial);
-    brainScene.add(line);
-    nodeMeshes.push(line);
+  allCards.forEach(card => {
+    if (groupedCards[card.type]) {
+      groupedCards[card.type].push(card);
+    } else {
+      groupedCards.task.push(card); // Default to task
+    }
   });
 
-  console.log(`Added ${allCards.length} node spheres to canvas`);
+  // Define quadrant angles for each type (in radians)
+  // Positioned like a compass: tasks=front, reminders=right, notes=back, calendar=left
+  const typeConfig = {
+    task: { baseAngle: 0, color: 0x22C55E },                    // Front (green)
+    reminder: { baseAngle: Math.PI / 2, color: 0xF97316 },      // Right (orange)
+    note: { baseAngle: Math.PI, color: 0x8B5CF6 },              // Back (purple)
+    calendar: { baseAngle: (3 * Math.PI) / 2, color: 0x14B8A6 } // Left (teal)
+  };
+
+  const radius = 8; // Orbit radius around brain
+  const nodeSize = 0.35;
+  const arcSpread = Math.PI / 3; // How much angle each group can spread (60 degrees)
+
+  Object.keys(groupedCards).forEach(type => {
+    const cards = groupedCards[type];
+    const config = typeConfig[type];
+    if (!cards.length) return;
+
+    cards.forEach((card, index) => {
+      // Calculate position within the type's quadrant
+      const count = cards.length;
+      let angle;
+      
+      if (count === 1) {
+        angle = config.baseAngle;
+      } else {
+        // Spread cards within their quadrant arc
+        const spreadAngle = arcSpread / Math.max(count - 1, 1);
+        angle = config.baseAngle - (arcSpread / 2) + (spreadAngle * index);
+      }
+
+      // Add some vertical variation
+      const heightOffset = count > 1 
+        ? ((index / (count - 1)) - 0.5) * 3 
+        : 0;
+
+      // Create sphere geometry
+      const geometry = new THREE.SphereGeometry(nodeSize, 16, 16);
+      const material = new THREE.MeshStandardMaterial({
+        color: config.color,
+        emissive: config.color,
+        emissiveIntensity: 0.3,
+        roughness: 0.5,
+        metalness: 0.2
+      });
+      const sphere = new THREE.Mesh(geometry, material);
+
+      // Position in the type's section around the brain
+      sphere.position.x = Math.cos(angle) * radius;
+      sphere.position.y = heightOffset;
+      sphere.position.z = Math.sin(angle) * radius;
+
+      // Store card data for interaction
+      sphere.userData = { card: card };
+
+      brainScene.add(sphere);
+      nodeMeshes.push(sphere);
+
+      // Create line from brain center to node
+      const lineMaterial = new THREE.LineBasicMaterial({ 
+        color: config.color, 
+        opacity: 0.3, 
+        transparent: true 
+      });
+      const points = [
+        new THREE.Vector3(0, 0, 0),
+        sphere.position.clone()
+      ];
+      const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
+      const line = new THREE.Line(lineGeometry, lineMaterial);
+      brainScene.add(line);
+      nodeMeshes.push(line);
+    });
+  });
+
+  console.log(`Added ${allCards.length} grouped node spheres to canvas`);
 }
 
 // ===== Sidebar Collapse =====

@@ -2166,3 +2166,263 @@ body.dark-theme .canvas-instruction {
   color: var(--text-Secondary);
 }
 
+/* Canvas Tooltip */
+.canvas-tooltip {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-Primary);
+  box-shadow: var(--shadow-soft);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 100;
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.canvas-tooltip.visible {
+  opacity: 1;
+}
+
+body.dark-theme .canvas-tooltip {
+  background: rgba(30, 41, 59, 0.95);
+  color: var(--text-Primary);
+}
+
+/* Canvas Node Panel - Card Style */
+.canvas-node-panel {
+  position: absolute;
+  top: 50%;
+  left: 24px;
+  transform: translateY(-50%) translateX(-20px);
+  width: 300px;
+  background: white;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card-hover);
+  padding: 22px 18px 18px;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  z-index: 50;
+  overflow: visible;
+  border: 1px solid rgba(0, 0, 0, 0.02);
+}
+
+.canvas-node-panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  background: var(--accent-Blue);
+}
+
+.canvas-node-panel.visible {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+  pointer-events: auto;
+}
+
+/* Card type accent colors for panel */
+.canvas-node-panel.task::before { background: var(--accent-Green); }
+.canvas-node-panel.reminder::before { background: var(--accent-Orange); }
+.canvas-node-panel.note::before { background: var(--accent-Purple); }
+.canvas-node-panel.calendar::before { background: var(--accent-Teal); }
+
+/* Card type backgrounds for panel */
+.canvas-node-panel.task { background: linear-gradient(180deg, #FFFFFF 0%, #F3FBF6 100%); }
+.canvas-node-panel.reminder { background: linear-gradient(180deg, #FFFFFF 0%, #FFF4EA 100%); }
+.canvas-node-panel.note { background: linear-gradient(180deg, #FFFFFF 0%, #F6F2FF 100%); }
+.canvas-node-panel.calendar { background: linear-gradient(180deg, #FFFFFF 0%, #E9FAF9 100%); }
+
+body.dark-theme .canvas-node-panel {
+  background: var(--bg-Card);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+body.dark-theme .canvas-node-panel.task { background: linear-gradient(180deg, #1E293B 0%, rgba(34, 197, 94, 0.1) 100%); }
+body.dark-theme .canvas-node-panel.reminder { background: linear-gradient(180deg, #1E293B 0%, rgba(249, 115, 22, 0.1) 100%); }
+body.dark-theme .canvas-node-panel.note { background: linear-gradient(180deg, #1E293B 0%, rgba(139, 92, 246, 0.1) 100%); }
+body.dark-theme .canvas-node-panel.calendar { background: linear-gradient(180deg, #1E293B 0%, rgba(20, 184, 166, 0.1) 100%); }
+
+.panel-close-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: rgba(15, 23, 42, 0.06);
+  border: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-Tertiary);
+  transition: all 0.2s ease;
+}
+
+.panel-close-btn:hover {
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--accent-Red);
+}
+
+.panel-close-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Panel action buttons */
+.panel-actions {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  gap: 6px;
+}
+
+.panel-action-btn {
+  border: none;
+  background: rgba(15, 23, 42, 0.06);
+  color: var(--text-Tertiary);
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.panel-action-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.panel-action-btn.panel-send:hover {
+  background: rgba(59, 130, 246, 0.12);
+  color: var(--accent-Blue);
+}
+
+.canvas-node-panel.reminder .panel-send {
+  background: rgba(249, 115, 22, 0.12);
+  color: var(--accent-Orange);
+}
+
+.canvas-node-panel.reminder .panel-send:hover {
+  background: rgba(249, 115, 22, 0.2);
+  color: #C2410C;
+}
+
+.canvas-node-panel.calendar .panel-send {
+  background: rgba(20, 184, 166, 0.12);
+  color: var(--accent-Teal);
+}
+
+.canvas-node-panel.calendar .panel-send:hover {
+  background: rgba(20, 184, 166, 0.2);
+  color: #0F766E;
+}
+
+.panel-action-btn.panel-close:hover {
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--accent-Red);
+}
+
+.panel-content {
+  padding-top: 8px;
+}
+
+.panel-content .panel-header {
+  margin-bottom: 10px;
+}
+
+.panel-content .panel-type {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+
+.panel-content .panel-type.task { background: rgba(34, 197, 94, 0.15); color: #16A34A; }
+.panel-content .panel-type.reminder { background: rgba(249, 115, 22, 0.12); color: #C2410C; }
+.panel-content .panel-type.note { background: rgba(139, 92, 246, 0.12); color: #6D28D9; }
+.panel-content .panel-type.calendar { background: rgba(20, 184, 166, 0.12); color: #0F766E; }
+
+.panel-content .panel-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-Primary);
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.panel-content .panel-desc {
+  font-size: 13px;
+  color: var(--text-Secondary);
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+
+.panel-content .panel-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--text-Secondary);
+  font-weight: 500;
+}
+
+.panel-content .panel-meta-row .panel-date {
+  color: var(--accent-Blue);
+}
+
+.panel-content .panel-meta-row .panel-time {
+  color: var(--text-Primary);
+  font-weight: 600;
+}
+
+.panel-content .panel-detail-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-Secondary);
+  padding: 6px 0;
+  border-top: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.panel-content .panel-detail-row:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.panel-content .detail-label {
+  text-transform: uppercase;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-Tertiary);
+}
+
+.panel-content .detail-value {
+  font-weight: 500;
+  color: var(--text-Primary);
+}
+
