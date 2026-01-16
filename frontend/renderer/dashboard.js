@@ -662,14 +662,26 @@ function initCanvas() {
   // Handle Resize
   window.addEventListener('resize', onCanvasResize);
 
-  // Handle Recenter
+  // Handle Recenter with smooth animation
   const recenterBtn = document.getElementById('canvas-recenter-btn');
   if (recenterBtn) {
     recenterBtn.addEventListener('click', () => {
       if (brainCamera && brainControls) {
-        brainCamera.position.set(0, 0, 15);
-        brainControls.target.set(0, 0, 0);
-        brainControls.update();
+        // Close any open panel
+        const nodePanel = document.getElementById('canvas-node-panel');
+        if (nodePanel) nodePanel.classList.remove('visible');
+        
+        // Reset focused node highlighting
+        if (currentlyFocusedNode) {
+          if (currentlyFocusedNode.material) {
+            currentlyFocusedNode.material.emissiveIntensity = 0.3;
+          }
+          currentlyFocusedNode.scale.set(1, 1, 1);
+          currentlyFocusedNode = null;
+        }
+        
+        // Animate to center position
+        animateRecenter();
       }
     });
   }
@@ -884,6 +896,56 @@ function highlightFocusedNode(nodeMesh) {
     nodeMesh.material.emissiveIntensity = 1.0;
   }
   nodeMesh.scale.set(1.5, 1.5, 1.5);
+}
+
+// Animate camera back to center position
+function animateRecenter() {
+  if (!brainCamera || !brainControls) return;
+
+  // Stop auto-rotation during animation
+  brainControls.autoRotate = false;
+
+  // Cancel any existing focus animation
+  if (focusAnimationId) {
+    cancelAnimationFrame(focusAnimationId);
+  }
+
+  // Target positions (centered, looking at brain)
+  const targetCameraPosition = new THREE.Vector3(0, 0, 15);
+  const targetLookAt = new THREE.Vector3(0, 0, 0);
+
+  // Store initial camera state
+  const startPosition = brainCamera.position.clone();
+  const startTarget = brainControls.target.clone();
+
+  // Animation parameters
+  const duration = 600; // ms - slightly faster than node focus
+  const startTime = performance.now();
+
+  function animateToCenter() {
+    const elapsed = performance.now() - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+    
+    // Smooth easing function (ease-out cubic)
+    const eased = 1 - Math.pow(1 - progress, 3);
+
+    // Interpolate camera position
+    brainCamera.position.lerpVectors(startPosition, targetCameraPosition, eased);
+    
+    // Interpolate look-at target
+    brainControls.target.lerpVectors(startTarget, targetLookAt, eased);
+    brainControls.update();
+
+    if (progress < 1) {
+      focusAnimationId = requestAnimationFrame(animateToCenter);
+    } else {
+      focusAnimationId = null;
+      // Resume auto-rotation after animation completes
+      brainControls.autoRotate = true;
+    }
+  }
+
+  animateToCenter();
 }
 
 function showNodePanel(card, panelContent, nodePanel) {
